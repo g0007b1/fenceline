@@ -14,7 +14,7 @@ function render(template, vars) {
 }
 
 function loadTemplate(name) {
-  return fs.readFileSync(path.join(__dirname, '..', 'templates', name), 'utf8');
+  return fs.readFileSync(path.join(__dirname, '..', 'templates', name), 'utf8').replace(/\r\n/g, '\n');
 }
 
 // Write file; if it exists and has markers, replace only the managed block.

@@ -64,13 +64,13 @@ it('check and doctor pass', () => {
 });
 it('guard-write: protected, tooling, sibling, symlink, outside, tmp', () => {
   assert.strictEqual(W(app, 'android/app/build.gradle'), 'deny');
-  assert.strictEqual(W(app, '.env'), 'deny'); assert.strictEqual(W(app, '.ENV'), 'deny');
+  assert.strictEqual(W(app, '.env'), 'deny'); if (process.platform !== 'linux') assert.strictEqual(W(app, '.ENV'), 'deny', 'case-insensitive FS');
   assert.strictEqual(W(app, '.env.example'), 'allow');
   assert.strictEqual(W(app, '.agent-ready/config.json'), 'deny'); assert.strictEqual(W(app, '.agent-ready/state/x.json'), 'deny');
   assert.strictEqual(W(app, '.claude/settings.json'), 'deny'); assert.strictEqual(W(app, '.cursor/hooks.json'), 'deny'); assert.strictEqual(W(app, '.claude/rules/x.md'), 'allow');
   assert.strictEqual(W(app, path.join(tmp, 'backend', 'src', 'x.ts')), 'deny');
-  assert.strictEqual(W(app, path.join(os.tmpdir(), 'scratch.txt')), 'allow'); assert.strictEqual(W(app, '/tmp/scratch.txt'), 'allow');
-  assert.strictEqual(W(app, '/usr/local/agent-ready-nope/x.txt'), 'deny');
+  assert.strictEqual(W(app, path.join(os.tmpdir(), 'scratch.txt')), 'allow'); if (process.platform !== 'win32') assert.strictEqual(W(app, '/tmp/scratch.txt'), 'allow');
+  assert.strictEqual(W(app, process.platform === 'win32' ? 'C:\\agent-ready-nope\\x.txt' : '/usr/local/agent-ready-nope/x.txt'), 'deny');
   assert.strictEqual(W(app, 'src/keys/index.ts'), 'allow'); assert.strictEqual(W(app, 'keys/apple.p8'), 'deny');
   fs.symlinkSync(path.join(tmp, 'backend'), path.join(app, 'linkedback')); fs.symlinkSync(path.join(app, '.env'), path.join(app, 'envlink'));
   assert.strictEqual(W(app, 'linkedback/src/x.ts'), 'deny', 'symlink to sibling'); assert.strictEqual(W(app, 'envlink'), 'deny', 'symlink to .env');

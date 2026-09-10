@@ -204,7 +204,7 @@ function run(root, opts) {
   for (const a of adapters) {
     if (has('rules')) {
       for (const rule of preset.rules) {
-        const raw = R.render(fs.readFileSync(rule.path, 'utf8'), vars);
+        const raw = R.render(fs.readFileSync(rule.path, 'utf8').replace(/\r\n/g, '\n'), vars);
         const body = a.convertRule ? a.convertRule(raw) : raw;
         const target = path.join(root, a.rulesPath, 'agent-ready-' + rule.name.replace(/\.mdc$/, a.ruleExt));
         const existed = fs.existsSync(target);
