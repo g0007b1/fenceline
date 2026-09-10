@@ -16,7 +16,7 @@ const runtime = P.detectRuntime(input);
 const root = P.realRoot(P.projectRoot(input));
 const cfg = S.loadConfig(root);
 const session = P.sessionId(input);
-if (cfg.corrupt) P.followup(runtime, `agent-ready: ${cfg.corruptReason}. Restore .agent-ready/config.json (git checkout -- .agent-ready/config.json) before finishing.`);
+if (cfg.corrupt) P.followup(runtime, `fenceline: ${cfg.corruptReason}. Restore .fenceline/config.json (git checkout -- .fenceline/config.json) before finishing.`);
 if (input.status && input.status !== 'completed') P.done(); // Cursor: aborted / errored turns are not "done"
 const state = S.load(root, session);
 const max = cfg.maxStopAttempts || 4;
@@ -43,14 +43,14 @@ if (codeEdited) {
 
 let message = null;
 if (failures.length) {
-  message = `agent-ready: you edited code and these checks fail:\n\n${failures.map((f) => `### ${f.c.command}  (${f.c.id})\n\`\`\`\n${f.out}\n\`\`\``).join('\n\n')}\n\nFix what they report, run them again, then finish.`;
+  message = `fenceline: you edited code and these checks fail:\n\n${failures.map((f) => `### ${f.c.command}  (${f.c.id})\n\`\`\`\n${f.out}\n\`\`\``).join('\n\n')}\n\nFix what they report, run them again, then finish.`;
 } else if (!state.reviewed && (!cfg.gates || cfg.gates.review !== false)) {
   state.reviewed = true;
   const list = state.editedFiles.slice(0, 40).map((f) => `- ${f}`).join('\n');
-  message = `agent-ready: checks are green. Before finishing, review ONLY these changed files against the project rules (${cfg.rulesPath || 'rules'} / AGENTS.md) and fix violations without widening scope:\n${list}\nIf there is nothing to fix, say so explicitly. Then end your answer with a "How to test" section (automated tests, manual steps as Given/When/Then, edge cases).`;
+  message = `fenceline: checks are green. Before finishing, review ONLY these changed files against the project rules (${cfg.rulesPath || 'rules'} / AGENTS.md) and fix violations without widening scope:\n${list}\nIf there is nothing to fix, say so explicitly. Then end your answer with a "How to test" section (automated tests, manual steps as Given/When/Then, edge cases).`;
 } else if (state.integrationTriggers.length && !state.docsSynced && (!cfg.gates || cfg.gates.docsSync !== false)) {
   state.docsSynced = true;
-  message = `agent-ready: this change touched integration-level files (${state.integrationTriggers.join(', ')}). Update README / AGENTS.md / CLAUDE.md / .env.example accordingly in this same change — or state explicitly why no docs change is needed — before finishing.`;
+  message = `fenceline: this change touched integration-level files (${state.integrationTriggers.join(', ')}). Update README / AGENTS.md / CLAUDE.md / .env.example accordingly in this same change — or state explicitly why no docs change is needed — before finishing.`;
 }
 
 if (message) {

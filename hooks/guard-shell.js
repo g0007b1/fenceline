@@ -26,15 +26,15 @@ if (!cmd.trim()) P.allow();
 const root = P.realRoot(P.projectRoot(input));
 const cfg = loadConfig(root);
 const meta = { root, tool: P.toolName(input), command: cmd.slice(0, 300) };
-if (cfg.corrupt) P.deny(runtime, `agent-ready: ${cfg.corruptReason}. Refusing shell commands until the config is restored (fail-closed).`, 'PreToolUse', meta);
+if (cfg.corrupt) P.deny(runtime, `fenceline: ${cfg.corruptReason}. Refusing shell commands until the config is restored (fail-closed).`, 'PreToolUse', meta);
 
 const ctx = { root, denyWrite: toRegExps(cfg.denyWrite), denyRead: toRegExps(cfg.denyRead || []), isInsideTmp: P.isInsideTmp };
 const protectedBranches = new Set((cfg.protectedBranches || [cfg.baseBranch, 'main', 'master']).filter(Boolean));
 const strict = { rmRecursive: 'ask', secretsRead: 'ask', inlineScripts: 'ask', gitCheckoutPaths: 'ask', ...(cfg.strictness || {}) };
 // severity by knob: 'deny' → deny, 'ask' → ask, 'allow' → nothing
 const byKnob = (knob, why, extra) => { if (strict[knob] === 'deny') deny(why, extra); if (strict[knob] === 'ask') ask(why, extra); };
-const deny = (why, extra) => P.deny(runtime, `agent-ready: blocked \`${cmd.slice(0, 120)}\` — ${why}.`, 'PreToolUse', { ...meta, ...extra });
-const ask = (why, extra) => P.ask(runtime, `agent-ready: \`${cmd.slice(0, 120)}\` — ${why}. Ask a human before running it.`, 'PreToolUse', { ...meta, ...extra });
+const deny = (why, extra) => P.deny(runtime, `fenceline: blocked \`${cmd.slice(0, 120)}\` — ${why}.`, 'PreToolUse', { ...meta, ...extra });
+const ask = (why, extra) => P.ask(runtime, `fenceline: \`${cmd.slice(0, 120)}\` — ${why}. Ask a human before running it.`, 'PreToolUse', { ...meta, ...extra });
 
 const HOME = os.homedir();
 const vars = { HOME, PWD: root, TMPDIR: os.tmpdir(), OLDPWD: root };
@@ -265,7 +265,7 @@ for (const pipeline of parsed.pipelines) {
 // tooling mentioned anywhere with a redirect/write verb slipped through? belt and braces:
 for (const seg of parsed.commands) {
   if (!/^(cat|less|more|head|tail|grep|rg|ls|find|git|node|cd|echo|printf|test|\[|diff|stat|file|tree|wc|jq)$/.test(seg.first)) {
-    for (const t of seg.args.slice(1)) { const rel = relOf(resolveIn(vcwd, t)); if (looksLikePath(t) && isTooling(rel)) deny(`\`${seg.first}\` touches the agent-ready hook machinery (${rel})`, { path: rel, kind: 'tooling' }); }
+    for (const t of seg.args.slice(1)) { const rel = relOf(resolveIn(vcwd, t)); if (looksLikePath(t) && isTooling(rel)) deny(`\`${seg.first}\` touches the fenceline hook machinery (${rel})`, { path: rel, kind: 'tooling' }); }
   }
 }
 P.allow();

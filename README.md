@@ -1,23 +1,23 @@
-<h1 align="center">agent-ready</h1>
+<h1 align="center">fenceline</h1>
 
 <p align="center"><strong>Hooks that deny, not prompts that hope.</strong><br>
 One command turns any repository into a place where AI coding agents ship business logic — and cannot ship accidents.</p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/agent-ready"><img alt="npm" src="https://img.shields.io/npm/v/agent-ready?color=cb3837&label=npm"></a>
-  <a href="https://github.com/g0007b1/agent-ready/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/g0007b1/agent-ready/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://www.npmjs.com/package/fenceline"><img alt="npm" src="https://img.shields.io/npm/v/fenceline?color=cb3837&label=npm"></a>
+  <a href="https://github.com/g0007b1/fenceline/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/g0007b1/fenceline/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="node" src="https://img.shields.io/badge/node-%E2%89%A518-339933?logo=node.js&logoColor=white">
   <img alt="dependencies" src="https://img.shields.io/badge/dependencies-0-success">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
-<p align="center"><code>npx agent-ready init</code></p>
+<p align="center"><code>npx fenceline init</code></p>
 
 <p align="center">
   <b>Cursor</b> · <b>Claude Code</b> · Codex · Gemini CLI · GitHub Copilot &nbsp;|&nbsp; Node · Python · Go · Rust · anything with a Makefile
 </p>
 
-<p align="center"><img src="assets/demo-static.png" alt="agent-ready init and triage in a Next.js repo" width="880"></p>
+<p align="center"><img src="assets/demo-static.png" alt="fenceline init and triage in a Next.js repo" width="880"></p>
 
 > **"Remove the header on the bookings table screen."**
 > Twenty minutes later there is a draft PR: lint green, types green, the diff self-reviewed against the team's rules, a test plan in the body, nothing touched outside the task. No "please don't edit the migrations" reminder. No babysitting.
@@ -25,19 +25,19 @@ One command turns any repository into a place where AI coding agents ship busine
 
 ## The idea in one sentence
 
-**A rule an agent can forget is not a rule.** Rules files live in the context window and lose to everything else in it; the agent edits `android/` twenty tool calls after reading "never edit `android/`". The only thing that reliably works is the runtime saying *no*: a pre-tool hook that returns **deny**, a stop hook that returns **not yet**. `agent-ready` packages that — hooks, layered docs, a safe-list, fragile-zone detection — into one idempotent, removable command for any stack.
+**A rule an agent can forget is not a rule.** Rules files live in the context window and lose to everything else in it; the agent edits `android/` twenty tool calls after reading "never edit `android/`". The only thing that reliably works is the runtime saying *no*: a pre-tool hook that returns **deny**, a stop hook that returns **not yet**. `fenceline` packages that — hooks, layered docs, a safe-list, fragile-zone detection — into one idempotent, removable command for any stack.
 
 ## What you get in 60 seconds
 
 ```console
-$ npx agent-ready init
+$ npx fenceline init
 
-agent-ready init: Next.js, TypeScript, TanStack Query, Prisma, Vitest, ESLint, npm → preset "react-web"; runtimes: Cursor, Claude Code
+fenceline init: Next.js, TypeScript, TanStack Query, Prisma, Vitest, ESLint, npm → preset "react-web"; runtimes: Cursor, Claude Code
 
-  installed    .agent-ready/hooks/*            7 dependency-free scripts, one implementation for every runtime
+  installed    .fenceline/hooks/*            7 dependency-free scripts, one implementation for every runtime
   created      .cursor/hooks.json  .claude/settings.json
-  created      .cursor/rules/agent-ready-*.mdc  .claude/rules/agent-ready-*.md   (path-scoped conventions)
-  created      .cursor/commands/agent-ready-*.md  .claude/commands/…             (/review /pr /handoff /domain-doc /triage)
+  created      .cursor/rules/fenceline-*.mdc  .claude/rules/fenceline-*.md   (path-scoped conventions)
+  created      .cursor/commands/fenceline-*.md  .claude/commands/…             (/review /pr /handoff /domain-doc /triage)
   created      AGENTS.md  CLAUDE.md  docs/agent-safe-tasks.md  docs/README.md  docs/adr/  docs/handoffs/
   created      docs/features-bookings.md        ← 13 commits, 12 of them bug fixes: this zone gets a domain doc
 
@@ -45,7 +45,7 @@ Enforced: npm run lint && npm run type-check on stop; 13 protected path patterns
 ```
 
 ```console
-$ npx agent-ready doctor          # 60–90 checks against the real hook scripts, no agent needed
+$ npx fenceline doctor          # 60–90 checks against the real hook scripts, no agent needed
 
 Guards (preset samples + bypass regressions):
   ok   write .env                                     deny
@@ -64,8 +64,8 @@ Fail-closed on a broken config:
 ```
 
 ```console
-$ npx agent-ready triage "Add a refund flow with Stripe and a new payments table"
-agent-ready triage → HUMAN — outside the safe-list
+$ npx fenceline triage "Add a refund flow with Stripe and a new payments table"
+fenceline triage → HUMAN — outside the safe-list
   - touches risk zone "payments" (payment, refund)
   - touches risk zone "migrations" (new table)
   - introduces a new layer (new) in a risk zone
@@ -73,7 +73,7 @@ agent-ready triage → HUMAN — outside the safe-list
 
 ## Before / after
 
-| | Without | With `agent-ready` |
+| | Without | With `fenceline` |
 | --- | --- | --- |
 | "Never touch the migrations" | A sentence in a prompt. Forgotten by tool call #23. | Denied at the edit tool **and** at the shell — `cp`, `tee`, `sed -i`, redirects, symlinks, `cd` chains, `$VAR` expansion. |
 | Agent says "done" with red lint | The reviewer finds it. | The stop hook **runs the checks itself** and sends the agent back with the output. `\|\| true` does not count. |
@@ -88,13 +88,13 @@ agent-ready triage → HUMAN — outside the safe-list
 
 | Runtime | Hooks written to | Rules | Slash commands | Status |
 | --- | --- | --- | --- | --- |
-| **Cursor** | `.cursor/hooks.json` | `.cursor/rules/agent-ready-*.mdc` | `.cursor/commands/` | enforced, verified |
-| **Claude Code** | `.claude/settings.json` | `.claude/rules/agent-ready-*.md` (path-scoped) | `.claude/commands/` | enforced, verified |
+| **Cursor** | `.cursor/hooks.json` | `.cursor/rules/fenceline-*.mdc` | `.cursor/commands/` | enforced, verified |
+| **Claude Code** | `.claude/settings.json` | `.claude/rules/fenceline-*.md` (path-scoped) | `.claude/commands/` | enforced, verified |
 | **Codex CLI** | `.codex/hooks.json` | `docs/agent-rules/` linked from `AGENTS.md` | — | enforced, **experimental** |
 | **Gemini CLI** | `.gemini/settings.json` | `docs/agent-rules/` | — | enforced, **experimental** |
-| **GitHub Copilot** | `.github/hooks/agent-ready.json` | `.github/instructions/*.instructions.md` | — | enforced, **experimental** |
+| **GitHub Copilot** | `.github/hooks/fenceline.json` | `.github/instructions/*.instructions.md` | — | enforced, **experimental** |
 
-*Experimental* means wired from the vendor's published hook documentation (September 2026) and unit-tested against those payload shapes, but not yet verified in a live session. If you run one, `npx agent-ready doctor` plus a real "edit `.env`" attempt tells you in a minute — please open an issue either way. Windsurf and Kiro have hook APIs too and are on the roadmap.
+*Experimental* means wired from the vendor's published hook documentation (September 2026) and unit-tested against those payload shapes, but not yet verified in a live session. If you run one, `npx fenceline doctor` plus a real "edit `.env`" attempt tells you in a minute — please open an issue either way. Windsurf and Kiro have hook APIs too and are on the roadmap.
 
 One set of hook scripts serves every runtime; [`hooks/lib/protocol.js`](hooks/lib/protocol.js) is the only file that knows the wire formats. The runtime is passed as `--runtime` argv, so the generated commands also run in cmd / PowerShell.
 
@@ -102,19 +102,19 @@ One set of hook scripts serves every runtime; [`hooks/lib/protocol.js`](hooks/li
 
 ```mermaid
 flowchart LR
-  subgraph scan["npx agent-ready scan  (writes nothing)"]
+  subgraph scan["npx fenceline scan  (writes nothing)"]
     A[manifests<br/>package.json · pyproject · go.mod · Cargo.toml · Makefile] --> P[profile]
     B[dependencies + paths<br/>→ risk zones] --> P
     C[git log<br/>→ fragile zones] --> P
   end
   P --> Pr["preset = base + stack<br/>+ layers (monorepo) + modules (migrations)"]
-  Pr --> H[".agent-ready/config.json<br/>+ 7 hook scripts"]
+  Pr --> H[".fenceline/config.json<br/>+ 7 hook scripts"]
   Pr --> R[rules + slash commands<br/>per runtime]
   Pr --> Docs[AGENTS.md · CLAUDE.md<br/>safe-list · domain docs · ADR]
   H --> RT[Cursor · Claude Code · Codex<br/>Gemini · Copilot hook configs]
 ```
 
-You never run these yourself. `init` copies seven small scripts into `.agent-ready/hooks/` and registers them with the runtime; from then on Cursor / Claude Code call them automatically at the right moments. They are listed here so you know what happens on your behalf:
+You never run these yourself. `init` copies seven small scripts into `.fenceline/hooks/` and registers them with the runtime; from then on Cursor / Claude Code call them automatically at the right moments. They are listed here so you know what happens on your behalf:
 
 | Hook (automatic) | Fires on | Does |
 | --- | --- | --- |
@@ -137,7 +137,7 @@ agent says "done"
   └─ otherwise → released
 ```
 
-Bounded by `maxStopAttempts` (default 4), so a broken toolchain cannot trap the agent. State is per session (`.agent-ready/state/<id>.json`), so two agents in one checkout do not release each other. Every deny / ask is appended to `.agent-ready/audit.log`.
+Bounded by `maxStopAttempts` (default 4), so a broken toolchain cannot trap the agent. State is per session (`.fenceline/state/<id>.json`), so two agents in one checkout do not release each other. Every deny / ask is appended to `.fenceline/audit.log`.
 
 ## Stacks
 
@@ -160,16 +160,16 @@ Checks are whatever the repo already has: `npm run lint`, `uv run ruff check .`,
 ## Commands and options
 
 ```
-agent-ready init      [dir] [options]        Interactive setup — a wizard in a terminal, defaults with -y or in CI.
-agent-ready refresh   [dir] [options]        Re-run with the answers you gave last time; flags override.
-agent-ready scan      [dir] [--json]         Detect stack, checks, risk zones, fragile areas. Writes nothing.
-agent-ready check     [dir] [--no-run]       Hooks wired? Checks runnable? Docs present? TODOs left?
-agent-ready doctor    [dir] [--verbose]      Run every guard against samples and bypass regressions; simulate a session.
-agent-ready triage    "<task>" [--json]      auto / needs-ac / human — exit code 0 / 2 / 3, for bots and CI.
-agent-ready config    get [key] | set <key> <value>   Change any knob; hooks pick it up on the next call.
-agent-ready runtimes | presets               What is detected here; which stacks are known.
-agent-ready skill     [dir] [--to <path>]    Install the agent-ready skill so an agent can finish the setup.
-agent-ready uninstall [dir] [--docs]         Exact inverse of init.
+fenceline init      [dir] [options]        Interactive setup — a wizard in a terminal, defaults with -y or in CI.
+fenceline refresh   [dir] [options]        Re-run with the answers you gave last time; flags override.
+fenceline scan      [dir] [--json]         Detect stack, checks, risk zones, fragile areas. Writes nothing.
+fenceline check     [dir] [--no-run]       Hooks wired? Checks runnable? Docs present? TODOs left?
+fenceline doctor    [dir] [--verbose]      Run every guard against samples and bypass regressions; simulate a session.
+fenceline triage    "<task>" [--json]      auto / needs-ac / human — exit code 0 / 2 / 3, for bots and CI.
+fenceline config    get [key] | set <key> <value>   Change any knob; hooks pick it up on the next call.
+fenceline runtimes | presets               What is detected here; which stacks are known.
+fenceline skill     [dir] [--to <path>]    Install the fenceline skill so an agent can finish the setup.
+fenceline uninstall [dir] [--docs]         Exact inverse of init.
 ```
 
 Nothing is installed that you did not pick. The wizard asks six things — stack preset, **which runtimes** (only the detected ones are pre-selected), strictness profile, components, read-only neighbours, base branch / prefix — and `refresh` remembers the answers. Every question has a flag for scripts and CI:
@@ -196,15 +196,15 @@ Nothing is installed that you did not pick. The wizard asks six things — stack
 Any single knob can be changed afterwards without re-running init:
 
 ```bash
-npx agent-ready config set strictness.rmRecursive deny
-npx agent-ready config set gates.review false
-npx agent-ready config set runChecksOnStop always
+npx fenceline config set strictness.rmRecursive deny
+npx fenceline config set gates.review false
+npx fenceline config set runChecksOnStop always
 ```
 
 ## What gets generated
 
 ```
-.agent-ready/
+.fenceline/
   config.json        protected paths, shell rules, checks, siblings, protected branches — read on every hook call
   hooks/             seven scripts + lib; runtime-agnostic
   state/ audit.log profile.json               (gitignored)
@@ -216,31 +216,31 @@ docs/README.md · docs/agent-safe-tasks.md · docs/handoffs/_TEMPLATE.md · docs
 docs/<fragile-zone>.md       one per high-churn area — and nowhere else; empty docs are noise
 ```
 
-Everything is namespaced (`.agent-ready/`, `agent-ready-*`), merged (your other hooks survive; an unparsable settings file is never overwritten), or inside `<!-- agent-ready:managed -->` markers. Text around the markers survives `refresh`; `uninstall` removes exactly what was installed.
+Everything is namespaced (`.fenceline/`, `fenceline-*`), merged (your other hooks survive; an unparsable settings file is never overwritten), or inside `<!-- fenceline:managed -->` markers. Text around the markers survives `refresh`; `uninstall` removes exactly what was installed.
 
 | Slash command | What it makes the agent do |
 | --- | --- |
-| `/agent-ready-review` | Review the branch vs base against rules, domain docs and safe-list; run the checks; verdict. |
-| `/agent-ready-pr` | Checks → commit → push → **draft** PR with Summary + Test plan, exactly as `AGENTS.md` says. |
-| `/agent-ready-handoff` | The spec disagrees with a sibling repo: write the handoff file, don't work around it. |
-| `/agent-ready-domain-doc <dir>` | Fill a fragile-zone doc from git history, tests and types — no guessing. |
-| `/agent-ready-triage <task>` | Decide auto / human before touching code. |
+| `/fenceline-review` | Review the branch vs base against rules, domain docs and safe-list; run the checks; verdict. |
+| `/fenceline-pr` | Checks → commit → push → **draft** PR with Summary + Test plan, exactly as `AGENTS.md` says. |
+| `/fenceline-handoff` | The spec disagrees with a sibling repo: write the handoff file, don't work around it. |
+| `/fenceline-domain-doc <dir>` | Fill a fragile-zone doc from git history, tests and types — no guessing. |
+| `/fenceline-triage <task>` | Decide auto / human before touching code. |
 
 ## Let the agent finish the setup
 
 The generator does the deterministic part. The judgement part — what the product is, its vocabulary, what actually breaks in each fragile zone — lives in the code and the git history, and an agent is good at reading those.
 
 ```bash
-npx agent-ready skill        # copies skill/agent-ready into .agents/skills (or .claude/skills)
+npx fenceline skill        # copies skill/fenceline into .agents/skills (or .claude/skills)
 ```
 
-> "Finish the agent-ready setup for this repository using the agent-ready skill."
+> "Finish the fenceline setup for this repository using the fenceline skill."
 
 The skill scans, asks at most five questions, fills `CLAUDE.md` and the domain docs from real sources, tunes the safe-list, runs `doctor`, and ends by performing one trivial task to prove the stop hook actually stopped it.
 
 ## Customising
 
-Everything is data in `.agent-ready/config.json`, read on every hook call — no restart:
+Everything is data in `.fenceline/config.json`, read on every hook call — no restart:
 
 ```jsonc
 {
@@ -254,11 +254,11 @@ Everything is data in `.agent-ready/config.json`, read on every hook call — no
 }
 ```
 
-Add a ban, run `npx agent-ready doctor`, mention it in `AGENTS.md`. Presets are plain data files under [`presets/`](presets/) — a new stack is one `preset.js` plus a rules file, with `doctor` samples that must deny and must not.
+Add a ban, run `npx fenceline doctor`, mention it in `AGENTS.md`. Presets are plain data files under [`presets/`](presets/) — a new stack is one `preset.js` plus a rules file, with `doctor` samples that must deny and must not.
 
 ## Compared with…
 
-| | Config sync ([ruler](https://github.com/intellectronica/ruler), [rulesync](https://github.com/dyoshikawa/rulesync)) | Safety hooks ([cc-safety-net](https://github.com/kenryu42/cc-safety-net), [hookify](https://github.com/anthropics/claude-plugins-official)) | Readiness scoring ([agentready](https://github.com/ambient-code/agentready)) | **agent-ready** |
+| | Config sync ([ruler](https://github.com/intellectronica/ruler), [rulesync](https://github.com/dyoshikawa/rulesync)) | Safety hooks ([cc-safety-net](https://github.com/kenryu42/cc-safety-net), [hookify](https://github.com/anthropics/claude-plugins-official)) | Readiness scoring ([agentready](https://github.com/ambient-code/agentready)) | **fenceline** |
 | --- | --- | --- | --- | --- |
 | Rules / AGENTS.md across runtimes | ✅ | — | — | ✅ generated from the scan |
 | Deny destructive shell commands | — | ✅ regex / rulebooks | — | ✅ parsed (`git push` refspecs, `rm` targets, `cd` chains, `$VAR`) |
@@ -302,7 +302,7 @@ Built by [Dmitry Izgagin](https://github.com/g0007b1). If you run agents against
 ## Roadmap
 
 - Live verification of the Codex / Gemini / Copilot adapters; Windsurf and Kiro adapters.
-- `agent-ready prove`: run a canary task through the real runtime and assert the hooks fired.
+- `fenceline prove`: run a canary task through the real runtime and assert the hooks fired.
 - Risk scoring from the diff as a PR check, using the same signals as `triage`.
 - JVM / Ruby / PHP / Elixir presets — one data file each, good first issues.
 
@@ -310,6 +310,6 @@ Built by [Dmitry Izgagin](https://github.com/g0007b1). If you run agents against
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [docs/architecture.md](docs/architecture.md) and [docs/hooks.md](docs/hooks.md). Found a way around a guard? [SECURITY.md](SECURITY.md).
 
-<p align="center"><a href="https://star-history.com/#g0007b1/agent-ready&Date"><img src="https://api.star-history.com/svg?repos=g0007b1/agent-ready&type=Date" alt="Star history" width="600"></a></p>
+<p align="center"><a href="https://star-history.com/#g0007b1/fenceline&Date"><img src="https://api.star-history.com/svg?repos=g0007b1/fenceline&type=Date" alt="Star history" width="600"></a></p>
 
 MIT

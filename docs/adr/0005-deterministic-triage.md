@@ -9,7 +9,7 @@ Orchestrators (bots, CI jobs) need a cheap, explainable first opinion on whether
 
 ## Decision
 
-`agent-ready triage` scores a task from the repository's own signals — risk zones the scanner found, protected paths, fragile zones — plus a small keyword list per preset. It returns a verdict with reasons and a scriptable exit code. The agent still applies the safe-list in context.
+`fenceline triage` scores a task from the repository's own signals — risk zones the scanner found, protected paths, fragile zones — plus a small keyword list per preset. It returns a verdict with reasons and a scriptable exit code. The agent still applies the safe-list in context.
 
 ## Consequences
 

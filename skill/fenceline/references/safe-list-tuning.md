@@ -19,7 +19,7 @@ The question for every task type is: **if the agent gets this wrong and a review
 - **monorepo**: cross-package changes and shared packages → human.
 - **base (every preset)**: secrets, CI / deploy, core dependency upgrades, "while we are here" refactors, anything without acceptance criteria → human.
 
-`npx agent-ready triage "<task>"` gives a deterministic first opinion from these same signals; use it to sanity-check your tuning.
+`npx fenceline triage "<task>"` gives a deterministic first opinion from these same signals; use it to sanity-check your tuning.
 
 ## Signals to move something from auto to human
 

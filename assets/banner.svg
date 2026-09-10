@@ -13,12 +13,12 @@
   <rect x="0" y="0" width="1280" height="6" fill="url(#accent)"/>
 
   <!-- left: name + claim -->
-  <text x="88" y="150" fill="#e6e8ef" font-size="66" font-weight="700" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, Helvetica, Arial, sans-serif">agent-ready</text>
+  <text x="88" y="150" fill="#e6e8ef" font-size="66" font-weight="700" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, Helvetica, Arial, sans-serif">fenceline</text>
   <text x="90" y="205" fill="#9aa3b5" font-size="26" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, Helvetica, Arial, sans-serif">Hooks that deny, not prompts that hope.</text>
   <text x="90" y="245" fill="#9aa3b5" font-size="26" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, Helvetica, Arial, sans-serif">One command. Any repo. Any agent runtime.</text>
 
   <rect x="90" y="290" width="330" height="54" rx="10" fill="#111827" stroke="#334155"/>
-  <text x="112" y="325" fill="#a5f3fc" font-size="22">$ npx agent-ready init</text>
+  <text x="112" y="325" fill="#a5f3fc" font-size="22">$ npx fenceline init</text>
 
   <g font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, Helvetica, Arial, sans-serif" font-size="18" fill="#cbd5e1">
     <text x="90" y="400">Cursor · Claude Code · Codex · Gemini · Copilot</text>
@@ -30,7 +30,7 @@
   <rect x="700" y="80" width="500" height="480" rx="14" fill="#0b0e14" stroke="#2a3140"/>
   <circle cx="726" cy="106" r="6" fill="#ff5f56"/><circle cx="746" cy="106" r="6" fill="#ffbd2e"/><circle cx="766" cy="106" r="6" fill="#27c93f"/>
   <g font-size="17">
-    <text x="726" y="150" fill="#94a3b8">$ npx agent-ready doctor</text>
+    <text x="726" y="150" fill="#94a3b8">$ npx fenceline doctor</text>
     <text x="726" y="190" fill="#e2e8f0">Guards:</text>
     <text x="726" y="220" fill="#22c55e">  ok</text><text x="770" y="220" fill="#cbd5e1">write .env</text><text x="1090" y="220" fill="#f87171">deny</text>
     <text x="726" y="248" fill="#22c55e">  ok</text><text x="770" y="248" fill="#cbd5e1">write prisma/migrations/…</text><text x="1090" y="248" fill="#f87171">deny</text>

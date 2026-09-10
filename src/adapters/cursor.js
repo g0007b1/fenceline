@@ -6,8 +6,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const OURS = '.agent-ready/hooks/';
-function hookCmd(script) { return `node .agent-ready/hooks/${script} --runtime cursor`; }
+const OURS = '.fenceline/hooks/';
+function hookCmd(script) { return `node .fenceline/hooks/${script} --runtime cursor`; }
 
 function ourHooks(cfg) {
   return {
@@ -25,7 +25,7 @@ function ourHooks(cfg) {
 function readExisting(file) {
   if (!fs.existsSync(file)) return { existing: null, status: 'created' };
   try { return { existing: JSON.parse(fs.readFileSync(file, 'utf8')), status: 'updated' }; }
-  catch (e) { throw new Error(`${file} is not valid JSON (${e.message}). Fix or remove it, then re-run — agent-ready never overwrites a hook config it cannot parse.`); }
+  catch (e) { throw new Error(`${file} is not valid JSON (${e.message}). Fix or remove it, then re-run — fenceline never overwrites a hook config it cannot parse.`); }
 }
 
 function writeHooksConfig(root, cfg) {

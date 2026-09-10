@@ -10,7 +10,7 @@ const { spawnSync } = require('child_process');
 const { getPreset } = require('./presets');
 
 function runHook(root, script, input, extraEnv) {
-  const r = spawnSync('node', [path.join(root, '.agent-ready', 'hooks', script), '--runtime', 'cursor', '--root', root], {
+  const r = spawnSync('node', [path.join(root, '.fenceline', 'hooks', script), '--runtime', 'cursor', '--root', root], {
     cwd: root, input: JSON.stringify({ ...input, workspace_roots: [root], conversation_id: 'doctor' }), encoding: 'utf8', env: { ...process.env, ...(extraEnv || {}) },
   });
   return (r.stdout || '').trim();
@@ -18,9 +18,9 @@ function runHook(root, script, input, extraEnv) {
 const decision = (out) => (out.includes('"deny"') ? 'deny' : out.includes('"ask"') ? 'ask' : 'allow');
 
 function doctor(root, { verbose = false } = {}) {
-  console.log('\nagent-ready doctor\n');
-  const cfgPath = path.join(root, '.agent-ready', 'config.json');
-  if (!fs.existsSync(cfgPath)) { console.log('  not initialised — run `npx agent-ready init` first\n'); return false; }
+  console.log('\nfenceline doctor\n');
+  const cfgPath = path.join(root, '.fenceline', 'config.json');
+  if (!fs.existsSync(cfgPath)) { console.log('  not initialised — run `npx fenceline init` first\n'); return false; }
   const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
   const preset = getPreset(cfg.preset, { layers: cfg.layers || [], modules: cfg.modules || [] });
   let ok = true, total = 0;
@@ -47,8 +47,8 @@ function doctor(root, { verbose = false } = {}) {
     S(`(cd ${sib} && git log -1)`, 'allow', `shell: (cd ${sib} && git log)`);
   }
   // symlink bypass: link → sibling / secret
-  const linkDir = path.join(root, '.agent-ready', 'doctor-link');
-  try { fs.rmSync(linkDir, { force: true }); fs.symlinkSync(path.join(root, '.env'), linkDir); W('.agent-ready/doctor-link', 'deny', 'write through a symlink to .env'); } catch { /* symlinks unavailable */ }
+  const linkDir = path.join(root, '.fenceline', 'doctor-link');
+  try { fs.rmSync(linkDir, { force: true }); fs.symlinkSync(path.join(root, '.env'), linkDir); W('.fenceline/doctor-link', 'deny', 'write through a symlink to .env'); } catch { /* symlinks unavailable */ }
   for (const [script, input, expect, label] of cases) {
     const got = decision(runHook(root, script, input));
     line(got === expect || (expect === 'deny' && got === 'ask' && !/sibling|symlink/.test(label)), label, got !== expect ? got : null);
@@ -56,8 +56,8 @@ function doctor(root, { verbose = false } = {}) {
   try { fs.rmSync(linkDir, { force: true }); } catch { /* ignore */ }
 
   console.log('\nSession simulation (scratch state, live state untouched):');
-  const stateFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'agent-ready-doctor-')), 'state.json');
-  const env = { AGENT_READY_STATE_FILE: stateFile };
+  const stateFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'fenceline-doctor-')), 'state.json');
+  const env = { FENCELINE_STATE_FILE: stateFile };
   const codeFile = { node: 'src/x.ts', python: 'app/x.py', go: 'internal/x.go', rust: 'src/x.rs' }[cfg.ecosystem] || 'src/x.c';
   runHook(root, 'session-start.js', {}, env);
   runHook(root, 'track-edit.js', { tool_name: 'Edit', tool_input: { file_path: path.join(root, codeFile) } }, env);
@@ -67,9 +67,9 @@ function doctor(root, { verbose = false } = {}) {
   else if (/checks fail/.test(out)) {
     line(true, 'stop-hook ran the checks itself after a code edit and they are red → agent sent back (fix them, then re-run doctor)');
     for (const c of cfg.checks) runHook(root, 'track-checks.js', { tool_name: 'Bash', tool_input: { command: c.command }, exit_code: 0 }, env);
-    fs.writeFileSync(path.join(root, '.agent-ready', 'config.json'), JSON.stringify({ ...cfg, runChecksOnStop: 'never' }, null, 2));
+    fs.writeFileSync(path.join(root, '.fenceline', 'config.json'), JSON.stringify({ ...cfg, runChecksOnStop: 'never' }, null, 2));
     out = runHook(root, 'ensure-checks.js', { status: 'completed' }, env);
-    fs.writeFileSync(path.join(root, '.agent-ready', 'config.json'), JSON.stringify(cfg, null, 2) + '\n');
+    fs.writeFileSync(path.join(root, '.fenceline', 'config.json'), JSON.stringify(cfg, null, 2) + '\n');
     line(out.includes('review ONLY'), 'stop-hook demands self-review once checks are green', out ? null : 'nothing');
   } else line(out.includes('review ONLY'), 'stop-hook ran the checks itself after a code edit (green) and demands self-review', out ? null : 'nothing');
   out = runHook(root, 'ensure-checks.js', { status: 'completed' }, env);
@@ -91,9 +91,9 @@ function doctor(root, { verbose = false } = {}) {
   fs.rmSync(path.dirname(stateFile), { recursive: true, force: true });
 
   console.log('\nFail-closed on a broken config (scratch copy):');
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-ready-broken-'));
-  fs.cpSync(path.join(root, '.agent-ready'), path.join(scratch, '.agent-ready'), { recursive: true });
-  fs.writeFileSync(path.join(scratch, '.agent-ready', 'config.json'), 'not json');
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'fenceline-broken-'));
+  fs.cpSync(path.join(root, '.fenceline'), path.join(scratch, '.fenceline'), { recursive: true });
+  fs.writeFileSync(path.join(scratch, '.fenceline', 'config.json'), 'not json');
   line(decision(runHook(scratch, 'guard-write.js', { tool_name: 'Write', tool_input: { file_path: path.join(scratch, 'README.md') } })) === 'deny', 'unparsable config denies every edit');
   line(decision(runHook(scratch, 'guard-shell.js', { tool_name: 'Bash', tool_input: { command: 'ls' } })) === 'deny', 'unparsable config denies every shell command');
   fs.rmSync(scratch, { recursive: true, force: true });

@@ -17,6 +17,6 @@ const abs = P.realResolve(root, target);
 const rel = P.relativeToRoot(root, abs);
 const ctx = { denyRead: toRegExps(cfg.denyRead) };
 if (isSecret(ctx, rel)) {
-  P.deny(runtime, `agent-ready: "${rel}" holds secrets and is not read into the agent context. Use .env.example / the settings module to learn variable names.`, 'PreToolUse', { root, tool: P.toolName(input), path: rel, kind: 'secret-read' });
+  P.deny(runtime, `fenceline: "${rel}" holds secrets and is not read into the agent context. Use .env.example / the settings module to learn variable names.`, 'PreToolUse', { root, tool: P.toolName(input), path: rel, kind: 'secret-read' });
 }
 P.allow();

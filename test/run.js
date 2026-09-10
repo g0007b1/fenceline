@@ -4,13 +4,13 @@
 const { execSync, spawnSync } = require('child_process');
 const fs = require('fs'); const path = require('path'); const os = require('os'); const assert = require('assert');
 
-const cli = path.join(__dirname, '..', 'bin', 'agent-ready.js');
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-ready-'));
+const cli = path.join(__dirname, '..', 'bin', 'fenceline.js');
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fenceline-'));
 let passed = 0;
 const it = (name, fn) => { try { fn(); passed += 1; console.log(`  ok   ${name}`); } catch (e) { console.log(`  FAIL ${name}\n${e.stack}`); process.exitCode = 1; } };
 const sh = (cwd, c) => execSync(c, { cwd, stdio: 'pipe', encoding: 'utf8' });
 const run = (cwd, args) => spawnSync('node', [cli, ...args], { cwd, encoding: 'utf8' });
-const hookRaw = (root, name, input, env, runtime = 'cursor') => spawnSync('node', [path.join(root, '.agent-ready', 'hooks', name), '--runtime', runtime, '--root', root], { cwd: root, input: JSON.stringify(input), encoding: 'utf8', env: { ...process.env, ...(env || {}) } });
+const hookRaw = (root, name, input, env, runtime = 'cursor') => spawnSync('node', [path.join(root, '.fenceline', 'hooks', name), '--runtime', runtime, '--root', root], { cwd: root, input: JSON.stringify(input), encoding: 'utf8', env: { ...process.env, ...(env || {}) } });
 const hook = (root, name, input, env, runtime) => hookRaw(root, name, input, env, runtime).stdout;
 const d = (o) => (o.includes('"deny"') ? 'deny' : o.includes('"ask"') ? 'ask' : 'allow');
 const W = (root, p, extra) => d(hook(root, 'guard-write.js', { tool_name: 'Write', tool_input: { file_path: p }, ...(extra || {}) }));
@@ -41,10 +41,10 @@ it('scan detects expo preset, payments + secrets risks, fragile zone with numeri
 it('init writes hooks, rules, commands, docs for five runtimes', () => {
   const r = run(app, ['init', '--runtime', 'cursor', '--runtime', 'claude', '--runtime', 'codex', '--runtime', 'gemini', '--runtime', 'copilot', '--siblings', '../backend']);
   assert.strictEqual(r.status, 0, r.stderr + r.stdout);
-  for (const f of ['AGENTS.md', 'CLAUDE.md', 'docs/agent-safe-tasks.md', 'docs/README.md', 'docs/adr/_TEMPLATE.md', '.cursor/hooks.json', '.claude/settings.json', '.codex/hooks.json', '.gemini/settings.json', '.github/hooks/agent-ready.json',
-    '.cursor/rules/agent-ready-expo-native.mdc', '.claude/rules/agent-ready-react-components.md', 'docs/agent-rules/agent-ready-agent-workflow.md', '.github/instructions/agent-ready-react-components.instructions.md',
-    '.cursor/commands/agent-ready-review.md', '.claude/commands/agent-ready-pr.md', 'docs/features-booking.md', '.agent-ready/hooks/guard-read.js']) assert(fs.existsSync(path.join(app, f)), f);
-  const claudeRule = fs.readFileSync(path.join(app, '.claude/rules/agent-ready-react-components.md'), 'utf8');
+  for (const f of ['AGENTS.md', 'CLAUDE.md', 'docs/agent-safe-tasks.md', 'docs/README.md', 'docs/adr/_TEMPLATE.md', '.cursor/hooks.json', '.claude/settings.json', '.codex/hooks.json', '.gemini/settings.json', '.github/hooks/fenceline.json',
+    '.cursor/rules/fenceline-expo-native.mdc', '.claude/rules/fenceline-react-components.md', 'docs/agent-rules/fenceline-agent-workflow.md', '.github/instructions/fenceline-react-components.instructions.md',
+    '.cursor/commands/fenceline-review.md', '.claude/commands/fenceline-pr.md', 'docs/features-booking.md', '.fenceline/hooks/guard-read.js']) assert(fs.existsSync(path.join(app, f)), f);
+  const claudeRule = fs.readFileSync(path.join(app, '.claude/rules/fenceline-react-components.md'), 'utf8');
   assert(claudeRule.startsWith('---\ndescription:') && claudeRule.includes('paths:\n  - "**/*.tsx"'), 'claude rule has paths frontmatter');
   assert(fs.readFileSync(path.join(app, 'CLAUDE.md'), 'utf8').includes('@AGENTS.md'));
   assert(!/\{\{\w+\}\}/.test(fs.readFileSync(path.join(app, 'AGENTS.md'), 'utf8')), 'no unrendered vars');
@@ -52,9 +52,9 @@ it('init writes hooks, rules, commands, docs for five runtimes', () => {
   assert.strictEqual(cursor.hooks.preToolUse[0].matcher, 'Write|Delete'); assert(cursor.hooks.postToolUse && cursor.hooks.beforeReadFile);
   const claude = JSON.parse(fs.readFileSync(path.join(app, '.claude/settings.json'), 'utf8'));
   assert(!JSON.stringify(claude).includes('MultiEdit') && JSON.stringify(claude).includes('PowerShell') && claude.hooks.SessionStart[0].matcher.includes('compact'));
-  const cfg = JSON.parse(fs.readFileSync(path.join(app, '.agent-ready/config.json'), 'utf8'));
+  const cfg = JSON.parse(fs.readFileSync(path.join(app, '.fenceline/config.json'), 'utf8'));
   assert.strictEqual(cfg.version, 3); assert.strictEqual(cfg.checks.length, 2); assert(cfg.denyRead.length > 0 && cfg.protectedBranches.includes('main'));
-  assert(fs.readFileSync(path.join(app, '.gitignore'), 'utf8').includes('.agent-ready/state/'));
+  assert(fs.readFileSync(path.join(app, '.gitignore'), 'utf8').includes('.fenceline/state/'));
   const agents = fs.readFileSync(path.join(app, 'AGENTS.md'), 'utf8');
   assert(agents.includes('.env files (except .env.example)') && !agents.includes('(^|'), 'hard bans use labels, not regex');
 });
@@ -66,11 +66,11 @@ it('guard-write: protected, tooling, sibling, symlink, outside, tmp', () => {
   assert.strictEqual(W(app, 'android/app/build.gradle'), 'deny');
   assert.strictEqual(W(app, '.env'), 'deny'); if (process.platform !== 'linux') assert.strictEqual(W(app, '.ENV'), 'deny', 'case-insensitive FS');
   assert.strictEqual(W(app, '.env.example'), 'allow');
-  assert.strictEqual(W(app, '.agent-ready/config.json'), 'deny'); assert.strictEqual(W(app, '.agent-ready/state/x.json'), 'deny');
+  assert.strictEqual(W(app, '.fenceline/config.json'), 'deny'); assert.strictEqual(W(app, '.fenceline/state/x.json'), 'deny');
   assert.strictEqual(W(app, '.claude/settings.json'), 'deny'); assert.strictEqual(W(app, '.cursor/hooks.json'), 'deny'); assert.strictEqual(W(app, '.claude/rules/x.md'), 'allow');
   assert.strictEqual(W(app, path.join(tmp, 'backend', 'src', 'x.ts')), 'deny');
   assert.strictEqual(W(app, path.join(os.tmpdir(), 'scratch.txt')), 'allow'); if (process.platform !== 'win32') assert.strictEqual(W(app, '/tmp/scratch.txt'), 'allow');
-  assert.strictEqual(W(app, process.platform === 'win32' ? 'C:\\agent-ready-nope\\x.txt' : '/usr/local/agent-ready-nope/x.txt'), 'deny');
+  assert.strictEqual(W(app, process.platform === 'win32' ? 'C:\\fenceline-nope\\x.txt' : '/usr/local/fenceline-nope/x.txt'), 'deny');
   assert.strictEqual(W(app, 'src/keys/index.ts'), 'allow'); assert.strictEqual(W(app, 'keys/apple.p8'), 'deny');
   fs.symlinkSync(path.join(tmp, 'backend'), path.join(app, 'linkedback')); fs.symlinkSync(path.join(app, '.env'), path.join(app, 'envlink'));
   assert.strictEqual(W(app, 'linkedback/src/x.ts'), 'deny', 'symlink to sibling'); assert.strictEqual(W(app, 'envlink'), 'deny', 'symlink to .env');
@@ -84,7 +84,7 @@ it('guard-read: secrets never enter the context', () => {
 });
 it('guard-shell: writes to protected paths through every side door', () => {
   for (const c of ['cp x .env', 'mv x .env', 'tee .env <<< X', 'cat > .env', 'ln -s /etc/passwd .env', 'sed -i "" s/a/b/ .env', 'perl -pi -e s/a/b/ .env', 'X=.env; echo S > $X', 'echo x > ./.env', 'echo x > "$PWD/.env"',
-    'cp x android/x', 'echo x > android/x', 'tee ios/Podfile', 'truncate -s0 .agent-ready/hooks/guard-shell.js', 'echo "{}" > .claude/settings.json', 'mv .agent-ready .x', 'sed -i "" s/a/b/ .agent-ready/config.json', 'chmod -x .agent-ready/hooks/guard-write.js',
+    'cp x android/x', 'echo x > android/x', 'tee ios/Podfile', 'truncate -s0 .fenceline/hooks/guard-shell.js', 'echo "{}" > .claude/settings.json', 'mv .fenceline .x', 'sed -i "" s/a/b/ .fenceline/config.json', 'chmod -x .fenceline/hooks/guard-write.js',
     'echo x > ../backend/notes.md', 'cp file ../backend/', 'cd .. && cd backend && echo x > f', 'cd ../backend && git commit -m x', 'git -C ../backend commit -m x', 'rsync -a src/ ../backend/src/']) assert.strictEqual(S(app, c), 'deny', c);
   for (const c of ['python -c "open(\'.env\',\'w\').write(1)"', 'node -e "require(\'fs\').writeFileSync(\'.env\',\'x\')"', 'sh -c "echo x > .env"', 'eval "echo x > .env"', 'cat .env', 'grep KEY .env', 'source .env']) assert.strictEqual(S(app, c), 'ask', c);
 });
@@ -111,7 +111,7 @@ it('guard-shell: git add -A / commit -a with an untracked secret', () => {
   assert.strictEqual(S(app, 'git add -A'), 'allow');
 });
 it('stop-hook: runs checks itself, review, docs sync, re-arms after a new edit, honest tracking only', () => {
-  const env = { AGENT_READY_STATE_FILE: path.join(tmp, 'state-a.json') };
+  const env = { FENCELINE_STATE_FILE: path.join(tmp, 'state-a.json') };
   hook(app, 'session-start.js', {}, env);
   hook(app, 'track-edit.js', { tool_name: 'Edit', tool_input: { file_path: 'src/x.ts' } }, env);
   hook(app, 'track-edit.js', { tool_name: 'Edit', tool_input: { file_path: 'package.json' } }, env);
@@ -120,54 +120,54 @@ it('stop-hook: runs checks itself, review, docs sync, re-arms after a new edit, 
   assert(hook(app, 'ensure-checks.js', { status: 'completed' }, env).includes('integration-level'));
   assert.strictEqual(hook(app, 'ensure-checks.js', { status: 'completed' }, env).trim(), '');
   hook(app, 'track-edit.js', { tool_name: 'Edit', tool_input: { file_path: 'src/y.tsx' } }, env);
-  let st = JSON.parse(fs.readFileSync(env.AGENT_READY_STATE_FILE, 'utf8'));
+  let st = JSON.parse(fs.readFileSync(env.FENCELINE_STATE_FILE, 'utf8'));
   assert.deepStrictEqual(st.checks, {}); assert.strictEqual(st.reviewed, false);
   // dishonest greens
   for (const c of ['npm run lint || true', 'echo npm run lint; echo npm run type-check', 'grep -n "npm run type-check" AGENTS.md', 'true && npm run lint || true']) {
     hook(app, 'track-checks.js', { tool_name: 'Bash', tool_input: { command: c }, exit_code: 0 }, env);
-    st = JSON.parse(fs.readFileSync(env.AGENT_READY_STATE_FILE, 'utf8'));
+    st = JSON.parse(fs.readFileSync(env.FENCELINE_STATE_FILE, 'utf8'));
     assert(!Object.values(st.checks).includes('green'), `${c} must not be green: ${JSON.stringify(st.checks)}`);
   }
   hook(app, 'track-checks.js', { tool_name: 'Bash', tool_input: { command: 'npm run lint && pnpm type-check' }, exit_code: 0 }, env);
-  st = JSON.parse(fs.readFileSync(env.AGENT_READY_STATE_FILE, 'utf8'));
+  st = JSON.parse(fs.readFileSync(env.FENCELINE_STATE_FILE, 'utf8'));
   assert.deepStrictEqual(st.checks, { lint: 'green', typeCheck: 'green' });
   // Cursor postToolUse shape: tool_output is a JSON string with exitCode; stderr counts
   hook(app, 'track-checks.js', { tool_name: 'Shell', tool_input: { command: 'npm run lint' }, tool_output: JSON.stringify({ exitCode: 1, stdout: '', stderr: 'error TS2304' }) }, env);
-  assert.strictEqual(JSON.parse(fs.readFileSync(env.AGENT_READY_STATE_FILE, 'utf8')).checks.lint, 'red');
+  assert.strictEqual(JSON.parse(fs.readFileSync(env.FENCELINE_STATE_FILE, 'utf8')).checks.lint, 'red');
   hook(app, 'track-checks.js', { tool_name: 'Bash', tool_input: { command: 'npm run type-check' }, tool_response: { stdout: 'Found 0 errors. Watching for file changes.', stderr: '' } }, env);
-  assert.strictEqual(JSON.parse(fs.readFileSync(env.AGENT_READY_STATE_FILE, 'utf8')).checks.typeCheck, 'green');
+  assert.strictEqual(JSON.parse(fs.readFileSync(env.FENCELINE_STATE_FILE, 'utf8')).checks.typeCheck, 'green');
   // compaction keeps state; startup resets
   hook(app, 'session-start.js', { source: 'compact' }, env);
-  assert.strictEqual(JSON.parse(fs.readFileSync(env.AGENT_READY_STATE_FILE, 'utf8')).editedFiles.length, 1);
+  assert.strictEqual(JSON.parse(fs.readFileSync(env.FENCELINE_STATE_FILE, 'utf8')).editedFiles.length, 1);
   hook(app, 'session-start.js', { source: 'startup' }, env);
-  assert.strictEqual(JSON.parse(fs.readFileSync(env.AGENT_READY_STATE_FILE, 'utf8')).editedFiles.length, 0);
+  assert.strictEqual(JSON.parse(fs.readFileSync(env.FENCELINE_STATE_FILE, 'utf8')).editedFiles.length, 0);
   // per-session isolation
-  delete env.AGENT_READY_STATE_FILE;
+  delete env.FENCELINE_STATE_FILE;
   hook(app, 'track-edit.js', { tool_name: 'Edit', tool_input: { file_path: 'src/a.ts' }, session_id: 'S1' });
   hook(app, 'track-edit.js', { tool_name: 'Edit', tool_input: { file_path: 'src/b.ts' }, conversation_id: 'S2' });
-  assert(fs.existsSync(path.join(app, '.agent-ready/state/S1.json')) && fs.existsSync(path.join(app, '.agent-ready/state/S2.json')));
-  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(app, '.agent-ready/state/S1.json'), 'utf8')).editedFiles, ['src/a.ts']);
+  assert(fs.existsSync(path.join(app, '.fenceline/state/S1.json')) && fs.existsSync(path.join(app, '.fenceline/state/S2.json')));
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(app, '.fenceline/state/S1.json'), 'utf8')).editedFiles, ['src/a.ts']);
 });
 it('stop-hook re-runs a failing check and blocks with its output', () => {
   const bad = path.join(tmp, 'bad');
   write(bad, 'package.json', JSON.stringify({ name: 'bad', scripts: { lint: 'node -e "console.error(\'✖ 1 problem\'); process.exit(1)"' }, dependencies: { react: '1' } }));
   write(bad, 'src/x.tsx', ''); gitInit(bad);
   assert.strictEqual(run(bad, ['init', '--runtime', 'claude', '--no-siblings']).status, 0);
-  const env = { AGENT_READY_STATE_FILE: path.join(tmp, 'state-bad.json') };
+  const env = { FENCELINE_STATE_FILE: path.join(tmp, 'state-bad.json') };
   hook(bad, 'track-edit.js', { tool_name: 'Edit', tool_input: { file_path: 'src/x.tsx' } }, env);
   const out = hook(bad, 'ensure-checks.js', {}, env, 'claude');
   assert(out.includes('"block"') && out.includes('checks fail') && out.includes('✖ 1 problem'), out);
   // fake green from a spoofed state file is re-verified
-  fs.writeFileSync(env.AGENT_READY_STATE_FILE, JSON.stringify({ editedFiles: ['src/x.tsx'], checks: { lint: 'green' }, stopAttempts: 0, reviewed: false, docsSynced: false, integrationTriggers: [] }));
-  fs.writeFileSync(path.join(bad, '.agent-ready/config.json'), fs.readFileSync(path.join(bad, '.agent-ready/config.json'), 'utf8').replace('"runChecksOnStop": "missing"', '"runChecksOnStop": "always"'));
+  fs.writeFileSync(env.FENCELINE_STATE_FILE, JSON.stringify({ editedFiles: ['src/x.tsx'], checks: { lint: 'green' }, stopAttempts: 0, reviewed: false, docsSynced: false, integrationTriggers: [] }));
+  fs.writeFileSync(path.join(bad, '.fenceline/config.json'), fs.readFileSync(path.join(bad, '.fenceline/config.json'), 'utf8').replace('"runChecksOnStop": "missing"', '"runChecksOnStop": "always"'));
   assert(hook(bad, 'ensure-checks.js', {}, env, 'claude').includes('checks fail'), 'always mode re-runs even when state says green');
 });
 it('corrupt config fails closed', () => {
-  const bk = fs.readFileSync(path.join(app, '.agent-ready/config.json'), 'utf8');
-  fs.writeFileSync(path.join(app, '.agent-ready/config.json'), 'not json');
+  const bk = fs.readFileSync(path.join(app, '.fenceline/config.json'), 'utf8');
+  fs.writeFileSync(path.join(app, '.fenceline/config.json'), 'not json');
   assert.strictEqual(W(app, 'README.md'), 'deny'); assert.strictEqual(S(app, 'ls'), 'deny');
-  assert(hook(app, 'ensure-checks.js', {}, { AGENT_READY_STATE_FILE: path.join(tmp, 'state-c.json') }).includes('Restore'));
-  fs.writeFileSync(path.join(app, '.agent-ready/config.json'), bk);
+  assert(hook(app, 'ensure-checks.js', {}, { FENCELINE_STATE_FILE: path.join(tmp, 'state-c.json') }).includes('Restore'));
+  fs.writeFileSync(path.join(app, '.fenceline/config.json'), bk);
 });
 it('runtime wire formats: claude, codex apply_patch, gemini, copilot', () => {
   const claude = hookRaw(app, 'guard-write.js', { tool_name: 'Write', tool_input: { file_path: '.env' } }, {}, 'claude').stdout;
@@ -184,9 +184,9 @@ it('runtime wire formats: claude, codex apply_patch, gemini, copilot', () => {
   assert.strictEqual(JSON.parse(gemShell).decision, 'deny');
   const cop = hookRaw(app, 'guard-shell.js', { toolName: 'bash', toolArgs: { command: 'rm -rf /' }, cwd: app }, {}, 'copilot').stdout;
   assert.strictEqual(JSON.parse(cop).permissionDecision, 'deny');
-  const stop = hookRaw(app, 'ensure-checks.js', {}, { AGENT_READY_STATE_FILE: path.join(tmp, 'state-b.json') }, 'claude');
+  const stop = hookRaw(app, 'ensure-checks.js', {}, { FENCELINE_STATE_FILE: path.join(tmp, 'state-b.json') }, 'claude');
   assert.strictEqual(stop.stdout.trim(), '');
-  assert(fs.readFileSync(path.join(app, '.agent-ready/audit.log'), 'utf8').includes('"decision":"deny"'), 'audit log written');
+  assert(fs.readFileSync(path.join(app, '.fenceline/audit.log'), 'utf8').includes('"decision":"deny"'), 'audit log written');
 });
 it('triage classifies tasks', () => {
   const t = (s) => JSON.parse(run(app, ['triage', s, '--json']).stdout).verdict;
@@ -200,8 +200,8 @@ it('refresh keeps human text; a doubled managed block is refused, not mangled', 
   fs.appendFileSync(path.join(app, 'AGENTS.md'), '\nkeep-me\n');
   assert.strictEqual(run(app, ['refresh', '--siblings', '../backend']).status, 0);
   const a = fs.readFileSync(path.join(app, 'AGENTS.md'), 'utf8');
-  assert(a.includes('keep-me') && a.split('agent-ready:managed:begin').length === 2);
-  fs.appendFileSync(path.join(app, 'AGENTS.md'), '\n<!-- agent-ready:managed:begin -->\n<!-- agent-ready:managed:end -->\n');
+  assert(a.includes('keep-me') && a.split('fenceline:managed:begin').length === 2);
+  fs.appendFileSync(path.join(app, 'AGENTS.md'), '\n<!-- fenceline:managed:begin -->\n<!-- fenceline:managed:end -->\n');
   const r = run(app, ['refresh', '--siblings', '../backend']); assert.notStrictEqual(r.status, 0); assert(r.stderr.includes('exactly one managed block'));
   fs.writeFileSync(path.join(app, 'AGENTS.md'), a);
 });
@@ -214,10 +214,10 @@ it('unparsable runtime config is never overwritten', () => {
 });
 it('uninstall removes everything namespaced and keeps docs', () => {
   const r = run(app, ['uninstall']); assert.strictEqual(r.status, 0, r.stderr);
-  for (const f of ['.agent-ready', '.cursor/hooks.json', '.cursor/rules/agent-ready-expo-native.mdc', '.claude/commands/agent-ready-pr.md', '.codex', '.gemini', '.github/hooks', '.github/instructions']) assert(!fs.existsSync(path.join(app, f)), `${f} removed`);
+  for (const f of ['.fenceline', '.cursor/hooks.json', '.cursor/rules/fenceline-expo-native.mdc', '.claude/commands/fenceline-pr.md', '.codex', '.gemini', '.github/hooks', '.github/instructions']) assert(!fs.existsSync(path.join(app, f)), `${f} removed`);
   for (const f of ['AGENTS.md', 'CLAUDE.md', 'docs/features-booking.md']) assert(fs.existsSync(path.join(app, f)), `${f} kept`);
   const gi = fs.readFileSync(path.join(app, '.gitignore'), 'utf8');
-  assert(!gi.includes('agent-ready') && gi.includes('.env'), 'our gitignore lines removed, user line kept');
+  assert(!gi.includes('fenceline') && gi.includes('.env'), 'our gitignore lines removed, user line kept');
 });
 
 // ---------------- Python (FastAPI + alembic, uv, PEP 621 optional deps, tooling package.json) ----------------
@@ -236,16 +236,16 @@ it('scan: python wins over a tooling package.json; optional deps seen; migration
 });
 it('init + doctor for python (claude only); alembic versions protected; pip install asks', () => {
   assert.strictEqual(run(py, ['init', '--runtime', 'claude', '--no-siblings']).status, 0);
-  const cfg = JSON.parse(fs.readFileSync(path.join(py, '.agent-ready/config.json'), 'utf8'));
+  const cfg = JSON.parse(fs.readFileSync(path.join(py, '.fenceline/config.json'), 'utf8'));
   assert.deepStrictEqual(cfg.modules, ['migrations']);
-  assert(fs.existsSync(path.join(py, '.claude/rules/agent-ready-python-modules.md')) && !fs.existsSync(path.join(py, '.cursor')));
+  assert(fs.existsSync(path.join(py, '.claude/rules/fenceline-python-modules.md')) && !fs.existsSync(path.join(py, '.cursor')));
   const dr = run(py, ['doctor']); assert.strictEqual(dr.status, 0, dr.stdout);
   assert.strictEqual(W(py, 'alembic/versions/002_x.py'), 'deny');
   assert.strictEqual(S(py, 'uv run alembic upgrade head'), 'ask'); assert.strictEqual(S(py, 'pip install requests'), 'ask'); assert.strictEqual(S(py, 'pip install -r requirements.txt'), 'allow');
-  const env = { AGENT_READY_STATE_FILE: path.join(tmp, 'state-py.json') };
+  const env = { FENCELINE_STATE_FILE: path.join(tmp, 'state-py.json') };
   hook(py, 'track-edit.js', { tool_name: 'Edit', tool_input: { file_path: 'app/main.py' } }, env);
   hook(py, 'track-checks.js', { tool_name: 'Bash', tool_input: { command: 'uv run ruff check . && uv run mypy .' }, exit_code: 0 }, env);
-  assert.deepStrictEqual(JSON.parse(fs.readFileSync(env.AGENT_READY_STATE_FILE, 'utf8')).checks, { lint: 'green', typeCheck: 'green' });
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(env.FENCELINE_STATE_FILE, 'utf8')).checks, { lint: 'green', typeCheck: 'green' });
 });
 
 // ---------------- Next.js + Prisma: migrations module regardless of preset ----------------
@@ -269,9 +269,9 @@ it('go stays go with the monorepo layer stacked on top', () => {
   const p = JSON.parse(run(go, ['scan', '--json']).stdout);
   assert.strictEqual(p.preset, 'go'); assert.strictEqual(p.stack.checks.lint, 'go vet ./...'); assert(p.risks.some((r) => r.id === 'auth'));
   assert.strictEqual(run(go, ['init', '--runtime', 'cursor', '--no-siblings']).status, 0);
-  const cfg = JSON.parse(fs.readFileSync(path.join(go, '.agent-ready/config.json'), 'utf8'));
+  const cfg = JSON.parse(fs.readFileSync(path.join(go, '.fenceline/config.json'), 'utf8'));
   assert.deepStrictEqual(cfg.layers, ['monorepo']);
-  assert(fs.existsSync(path.join(go, '.cursor/rules/agent-ready-go-conventions.mdc')) && fs.existsSync(path.join(go, '.cursor/rules/agent-ready-monorepo-boundaries.mdc')));
+  assert(fs.existsSync(path.join(go, '.cursor/rules/fenceline-go-conventions.mdc')) && fs.existsSync(path.join(go, '.cursor/rules/fenceline-monorepo-boundaries.mdc')));
   assert.strictEqual(W(go, 'api/v1/users.pb.go'), 'deny'); assert.strictEqual(S(go, 'go get -u ./...'), 'ask');
 });
 
@@ -303,18 +303,18 @@ write(opt, 'src/a.tsx', ''); write(opt, '.cursor/rules/mine.mdc', 'x'); gitInit(
 it('--dry-run writes nothing and lists what it would do', () => {
   const r = run(opt, ['init', '-y', '--dry-run']);
   assert.strictEqual(r.status, 0, r.stderr); assert(r.stdout.includes('dry run') && r.stdout.includes('would create'));
-  assert(!fs.existsSync(path.join(opt, '.agent-ready')) && !fs.existsSync(path.join(opt, 'AGENTS.md')));
+  assert(!fs.existsSync(path.join(opt, '.fenceline')) && !fs.existsSync(path.join(opt, 'AGENTS.md')));
 });
 it('-y picks detected runtimes only (cursor here), default components, balanced profile', () => {
   const r = run(opt, ['init', '-y']); assert.strictEqual(r.status, 0, r.stderr);
-  const cfg = JSON.parse(fs.readFileSync(path.join(opt, '.agent-ready/config.json'), 'utf8'));
+  const cfg = JSON.parse(fs.readFileSync(path.join(opt, '.fenceline/config.json'), 'utf8'));
   assert.deepStrictEqual(cfg.runtimes, ['cursor']); assert.strictEqual(cfg.profile, 'balanced'); assert(cfg.components.includes('hooks') && !cfg.components.includes('skill'));
   assert(!fs.existsSync(path.join(opt, '.claude')) && fs.existsSync(path.join(opt, '.cursor/rules/mine.mdc')));
   assert.strictEqual(run(opt, ['uninstall']).status, 0);
 });
 it('--only docs installs no hooks and says so; --skip commands leaves commands out', () => {
   assert.strictEqual(run(opt, ['init', '-y', '--only', 'docs']).status, 0);
-  assert(fs.existsSync(path.join(opt, 'AGENTS.md')) && !fs.existsSync(path.join(opt, '.agent-ready/hooks')) && !fs.existsSync(path.join(opt, '.cursor/hooks.json')));
+  assert(fs.existsSync(path.join(opt, 'AGENTS.md')) && !fs.existsSync(path.join(opt, '.fenceline/hooks')) && !fs.existsSync(path.join(opt, '.cursor/hooks.json')));
   assert(fs.readFileSync(path.join(opt, 'AGENTS.md'), 'utf8').includes('hooks are not installed'));
   assert.strictEqual(run(opt, ['uninstall', '--docs']).status, 0);
   assert.strictEqual(run(opt, ['init', '-y', '--skip', 'commands,templates']).status, 0);
@@ -323,24 +323,24 @@ it('--only docs installs no hooks and says so; --skip commands leaves commands o
 });
 it('profiles set coherent knobs; light profile skips review gate and allows rm -r; strict denies', () => {
   assert.strictEqual(run(opt, ['init', '-y', '--profile', 'light']).status, 0);
-  let cfg = JSON.parse(fs.readFileSync(path.join(opt, '.agent-ready/config.json'), 'utf8'));
+  let cfg = JSON.parse(fs.readFileSync(path.join(opt, '.fenceline/config.json'), 'utf8'));
   assert.strictEqual(cfg.gates.review, false); assert.strictEqual(cfg.strictness.rmRecursive, 'allow');
   assert.strictEqual(S(opt, 'rm -rf build'), 'allow'); assert.strictEqual(S(opt, 'rm -rf /'), 'deny');
-  const env = { AGENT_READY_STATE_FILE: path.join(tmp, 'state-light.json') };
+  const env = { FENCELINE_STATE_FILE: path.join(tmp, 'state-light.json') };
   hook(opt, 'track-edit.js', { tool_name: 'Edit', tool_input: { file_path: 'src/a.tsx' } }, env);
   assert.strictEqual(hook(opt, 'ensure-checks.js', { status: 'completed' }, env).trim(), '', 'light: released right after green checks');
   assert.strictEqual(run(opt, ['refresh', '--profile', 'strict']).status, 0);
-  cfg = JSON.parse(fs.readFileSync(path.join(opt, '.agent-ready/config.json'), 'utf8'));
+  cfg = JSON.parse(fs.readFileSync(path.join(opt, '.fenceline/config.json'), 'utf8'));
   assert.strictEqual(cfg.runChecksOnStop, 'always'); assert(cfg.checks.some((c) => c.id === 'test'), 'strict requires tests');
   assert.strictEqual(S(opt, 'rm -rf build'), 'deny'); assert.strictEqual(S(opt, 'cat .env'), 'deny'); assert.strictEqual(S(opt, 'node -e "require(\'fs\').writeFileSync(\'.env\',1)"'), 'deny');
 });
 it('--no-review / --check / --protected-branches / config set are honoured; refresh keeps answers', () => {
   assert.strictEqual(run(opt, ['refresh', '--profile', 'balanced', '--no-review', '--check', 'node -e 0', '--protected-branches', 'release,trunk']).status, 0);
-  let cfg = JSON.parse(fs.readFileSync(path.join(opt, '.agent-ready/config.json'), 'utf8'));
+  let cfg = JSON.parse(fs.readFileSync(path.join(opt, '.fenceline/config.json'), 'utf8'));
   assert.strictEqual(cfg.gates.review, false); assert.deepStrictEqual(cfg.checks.map((c) => c.command), ['node -e 0']); assert(cfg.protectedBranches.includes('release') && cfg.protectedBranches.includes('main'));
   assert.strictEqual(S(opt, 'git push origin HEAD:release'), 'deny'); assert.strictEqual(S(opt, 'git push origin HEAD:develop'), 'allow');
   assert.strictEqual(run(opt, ['refresh']).status, 0);
-  cfg = JSON.parse(fs.readFileSync(path.join(opt, '.agent-ready/config.json'), 'utf8'));
+  cfg = JSON.parse(fs.readFileSync(path.join(opt, '.fenceline/config.json'), 'utf8'));
   assert.deepStrictEqual(cfg.checks.map((c) => c.command), ['node -e 0'], 'refresh keeps overridden checks'); assert.deepStrictEqual(cfg.runtimes, ['cursor']);
   assert.strictEqual(run(opt, ['config', 'set', 'strictness.rmRecursive', 'deny']).status, 0);
   assert.strictEqual(S(opt, 'rm -rf build'), 'deny');
@@ -352,9 +352,9 @@ it('--no-review / --check / --protected-branches / config set are honoured; refr
 it('interactive wizard reads answers from stdin', () => {
   assert.strictEqual(run(opt, ['uninstall', '--docs']).status, 0);
   // preset: Enter (default) · runtimes: 2 (claude) · profile: 1 (strict) · components: 1,4 (hooks, docs) · siblings: none · base branch: Enter · prefix: bot/
-  const r = spawnSync('node', [cli, 'init'], { cwd: opt, encoding: 'utf8', input: '\n2\n1\n1,4\nnone\n\nbot/\n', env: { ...process.env, AGENT_READY_INTERACTIVE: '1', CI: '' } });
+  const r = spawnSync('node', [cli, 'init'], { cwd: opt, encoding: 'utf8', input: '\n2\n1\n1,4\nnone\n\nbot/\n', env: { ...process.env, FENCELINE_INTERACTIVE: '1', CI: '' } });
   assert.strictEqual(r.status, 0, r.stderr + r.stdout);
-  const cfg = JSON.parse(fs.readFileSync(path.join(opt, '.agent-ready/config.json'), 'utf8'));
+  const cfg = JSON.parse(fs.readFileSync(path.join(opt, '.fenceline/config.json'), 'utf8'));
   assert.deepStrictEqual(cfg.runtimes, ['claude']); assert.strictEqual(cfg.profile, 'strict'); assert.deepStrictEqual(cfg.components, ['hooks', 'docs']); assert.strictEqual(cfg.branchPrefix, 'bot/');
   assert(fs.existsSync(path.join(opt, '.claude/settings.json')) && !fs.existsSync(path.join(opt, '.claude/rules')) && !fs.existsSync(path.join(opt, '.cursor/hooks.json')));
 });

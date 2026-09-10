@@ -16,7 +16,7 @@ const state = S.load(root, session);
 let changed = false;
 for (const target of P.editedPaths(input)) {
   const rel = P.relativeToRoot(root, P.realResolve(root, target));
-  if (!rel || rel.startsWith('../') || rel.startsWith('.agent-ready/')) continue;
+  if (!rel || rel.startsWith('../') || rel.startsWith('.fenceline/')) continue;
   if (!state.editedFiles.includes(rel)) state.editedFiles.push(rel);
   // Any code edit invalidates previously green checks and the self-review.
   if (codeFileRegExp(cfg).test(rel)) { state.checks = {}; state.reviewed = false; }

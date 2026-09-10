@@ -17,7 +17,7 @@ npm test
 | New stack preset | `presets/<id>/preset.js` (data only) + `presets/<id>/rules/*.mdc`; `choosePreset()` in `src/presets.js`; a detector in `src/detectors/` only if the manifest is new. Add a `doctor` block with deny / allow samples and a case in `test/run.js`. |
 | New risk signal | `RISK_SIGNALS` in `src/risks.js`: dependency names for every ecosystem you can, path patterns, label. |
 | New runtime | `src/adapters/<id>.js`, and `hooks/lib/protocol.js` if the wire format is new. That file is the only place runtime differences are allowed. |
-| New slash command | `templates/commands/agent-ready-<name>.md` + the `COMMANDS` list in `src/init.js`. |
+| New slash command | `templates/commands/fenceline-<name>.md` + the `COMMANDS` list in `src/init.js`. |
 | Hook behaviour | `hooks/*.js`. Keep them dependency-free and fast — they run on every tool call. Update the state machine in `docs/hooks.md`. |
 
 ## Rules of the house

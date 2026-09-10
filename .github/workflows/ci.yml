@@ -21,7 +21,7 @@ jobs:
       - run: npm test
       - name: self-check (dogfood)
         run: |
-          node bin/agent-ready.js scan
-          node bin/agent-ready.js init -y --runtime claude --no-siblings
-          node bin/agent-ready.js doctor
-          node bin/agent-ready.js uninstall --docs
+          node bin/fenceline.js scan
+          node bin/fenceline.js init -y --runtime claude --no-siblings
+          node bin/fenceline.js doctor
+          node bin/fenceline.js uninstall --docs

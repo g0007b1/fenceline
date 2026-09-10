@@ -16,7 +16,7 @@ function toShellRules(list) {
 }
 
 // The enforcement machinery itself. Always protected, regardless of preset.
-const TOOLING_RE = /^(\.agent-ready(\/|$)|\.claude\/settings(\.local)?\.json$|\.claude$|\.cursor\/hooks\.json$|\.cursor$|\.codex\/hooks\.json$|\.codex$|\.gemini\/settings\.json$|\.gemini$|\.github\/hooks(\/|$))/i;
+const TOOLING_RE = /^(\.fenceline(\/|$)|\.claude\/settings(\.local)?\.json$|\.claude$|\.cursor\/hooks\.json$|\.cursor$|\.codex\/hooks\.json$|\.codex$|\.gemini\/settings\.json$|\.gemini$|\.github\/hooks(\/|$))/i;
 function isTooling(rel) { return TOOLING_RE.test(rel); }
 
 const esc = (s) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -45,7 +45,7 @@ const FAIL_MARKERS = /(✖\s*[1-9]|\berror TS\d+|--- FAIL\b|\bFAILED\b|error\[E\
 // Classify a repo-relative path against the config. Returns null or { kind, why }.
 function classify(cfg, rel, absPath, ctx) {
   if (!rel) return null;
-  if (isTooling(rel)) return { kind: 'tooling', why: 'the agent-ready hooks and runtime hook config are never edited by agents' };
+  if (isTooling(rel)) return { kind: 'tooling', why: 'the fenceline hooks and runtime hook config are never edited by agents' };
   for (const sib of cfg.siblings || []) {
     const sibRoot = path.resolve(ctx.root, sib);
     if (absPath === sibRoot || absPath.startsWith(sibRoot + path.sep)) return { kind: 'sibling', why: `${sib} is a read-only sibling repository — write a handoff in docs/handoffs/ instead` };

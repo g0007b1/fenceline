@@ -1,6 +1,6 @@
 # Hooks: what runs when, and the wire format
 
-Seven scripts live in `.agent-ready/hooks/` inside the target repo (copied on `init`) and read `.agent-ready/config.json` on every call. Session state is in `.agent-ready/state/<session>.json`; every deny / ask is appended to `.agent-ready/audit.log` (both gitignored). The runtime is passed as `--runtime <id>`.
+Seven scripts live in `.fenceline/hooks/` inside the target repo (copied on `init`) and read `.fenceline/config.json` on every call. Session state is in `.fenceline/state/<session>.json`; every deny / ask is appended to `.fenceline/audit.log` (both gitignored). The runtime is passed as `--runtime <id>`.
 
 | Script | Cursor | Claude Code | Codex | Gemini CLI | Copilot | Purpose |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -52,7 +52,7 @@ What it does not do: execute the command in a sandbox, follow `$(…)` substitut
 }
 ```
 
-Path patterns are case-insensitive on macOS and Windows. The tooling paths (`.agent-ready/`, `.claude/settings*.json`, `.cursor/hooks.json`, `.codex/hooks.json`, `.gemini/settings.json`, `.github/hooks/`) are always protected regardless of config. A config that exists but does not parse denies every edit and shell command until restored.
+Path patterns are case-insensitive on macOS and Windows. The tooling paths (`.fenceline/`, `.claude/settings*.json`, `.cursor/hooks.json`, `.codex/hooks.json`, `.gemini/settings.json`, `.github/hooks/`) are always protected regardless of config. A config that exists but does not parse denies every edit and shell command until restored.
 
 ## Stop-hook state machine
 
@@ -80,19 +80,19 @@ A later code edit resets `checks` and `reviewed`. `maxStopAttempts` bounds the l
 | Gemini CLI | `{ decision: "deny", reason }` | deny with reason | `{ decision: "block", reason }` | stdout |
 | Copilot | `{ permissionDecision: "deny", permissionDecisionReason }` | `permissionDecision: "ask"` | exit 2 + stderr | stdout |
 
-Exit code 2 with the reason on stderr also blocks in Claude Code / Codex. Input fields normalised by `protocol.js`: `tool_input.file_path | path | target_file | notebook_path`, `toolArgs` (Copilot, JSON string or object), `tool_input.command` (shell, or the patch text for Codex `apply_patch`), `session_id | conversation_id` for the state file, `workspace_roots[0] | cwd | CLAUDE_PROJECT_DIR` walked up to the directory containing `.agent-ready/config.json`.
+Exit code 2 with the reason on stderr also blocks in Claude Code / Codex. Input fields normalised by `protocol.js`: `tool_input.file_path | path | target_file | notebook_path`, `toolArgs` (Copilot, JSON string or object), `tool_input.command` (shell, or the patch text for Codex `apply_patch`), `session_id | conversation_id` for the state file, `workspace_roots[0] | cwd | CLAUDE_PROJECT_DIR` walked up to the directory containing `.fenceline/config.json`.
 
 ## Adding a custom guard
 
-1. Add a pattern to `.agent-ready/config.json` — `denyWrite` with a `label`, or `denyShell` anchored with `^` and a `why`.
-2. `npx agent-ready doctor` — and, if you contribute it upstream, a `doctor` sample in the preset that must hit and one that must not.
+1. Add a pattern to `.fenceline/config.json` — `denyWrite` with a `label`, or `denyShell` anchored with `^` and a `why`.
+2. `npx fenceline doctor` — and, if you contribute it upstream, a `doctor` sample in the preset that must hit and one that must not.
 3. Mention the ban in `AGENTS.md` "Hard bans" so humans know it exists.
 
 ## Debugging a hook by hand
 
 ```bash
-echo '{"tool_name":"Write","tool_input":{"file_path":".env"}}' | node .agent-ready/hooks/guard-write.js --runtime cursor --root "$PWD"
-echo '{"tool_name":"Bash","tool_input":{"command":"git push origin HEAD:main"}}' | node .agent-ready/hooks/guard-shell.js --runtime claude --root "$PWD"
-AGENT_READY_STATE_FILE=/tmp/s.json node .agent-ready/hooks/ensure-checks.js --runtime cursor --root "$PWD" < /dev/null
-tail -f .agent-ready/audit.log
+echo '{"tool_name":"Write","tool_input":{"file_path":".env"}}' | node .fenceline/hooks/guard-write.js --runtime cursor --root "$PWD"
+echo '{"tool_name":"Bash","tool_input":{"command":"git push origin HEAD:main"}}' | node .fenceline/hooks/guard-shell.js --runtime claude --root "$PWD"
+FENCELINE_STATE_FILE=/tmp/s.json node .fenceline/hooks/ensure-checks.js --runtime cursor --root "$PWD" < /dev/null
+tail -f .fenceline/audit.log
 ```

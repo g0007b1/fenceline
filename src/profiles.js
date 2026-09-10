@@ -1,6 +1,6 @@
 'use strict';
 // Strictness profiles: one word that sets a coherent bundle of knobs. Every knob is still
-// individually editable in .agent-ready/config.json (`agent-ready config set …`).
+// individually editable in .fenceline/config.json (`fenceline config set …`).
 
 const PROFILES = {
   strict: {
@@ -36,11 +36,11 @@ const PROFILES = {
 const COMPONENTS = [
   { id: 'hooks', label: 'Hooks', hint: 'guards + stop gate, wired into each runtime — the enforcement', default: true },
   { id: 'rules', label: 'Rules', hint: 'code conventions in the runtime\'s rules format (.mdc / path-scoped .md / instructions.md)', default: true },
-  { id: 'commands', label: 'Slash commands', hint: '/agent-ready-review, -pr, -handoff, -domain-doc, -triage (Cursor, Claude Code)', default: true },
+  { id: 'commands', label: 'Slash commands', hint: '/fenceline-review, -pr, -handoff, -domain-doc, -triage (Cursor, Claude Code)', default: true },
   { id: 'docs', label: 'Layered docs', hint: 'AGENTS.md, CLAUDE.md, docs/agent-safe-tasks.md, docs/README.md (managed blocks)', default: true },
   { id: 'domain-docs', label: 'Domain docs', hint: 'one skeleton per fragile zone found in git history', default: true },
   { id: 'templates', label: 'Templates', hint: 'docs/handoffs/_TEMPLATE.md, docs/adr/_TEMPLATE.md', default: true },
-  { id: 'skill', label: 'Skill', hint: 'copy the agent-ready skill so an agent can finish the setup', default: false },
+  { id: 'skill', label: 'Skill', hint: 'copy the fenceline skill so an agent can finish the setup', default: false },
 ];
 
 function getProfile(id) {

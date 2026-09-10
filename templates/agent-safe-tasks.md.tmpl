@@ -1,6 +1,6 @@
 # Agent safe-list — what an agent may ship without a human
 
-<!-- agent-ready:managed:begin -->
+<!-- fenceline:managed:begin -->
 The question is never "can the agent write this code" — it usually can. The question is
 **what it costs when it's wrong**. This list limits blast radius, not capability.
 
@@ -23,7 +23,7 @@ The question is never "can the agent write this code" — it usually can. The qu
 3. A risky word alone is not a stop. A risky *change* is.
 4. In doubt — **do not open a PR**. Write 2–3 sentences: what the task needs, why it is outside the safe-list, what a human should decide. A refusal is a normal outcome, not a failure.
 
-Check a task from the terminal: `npx agent-ready triage "<task text>"`.
-<!-- agent-ready:managed:end -->
+Check a task from the terminal: `npx fenceline triage "<task text>"`.
+<!-- fenceline:managed:end -->
 
-<!-- Add project-specific entries below; `agent-ready refresh` will not touch them. -->
+<!-- Add project-specific entries below; `fenceline refresh` will not touch them. -->

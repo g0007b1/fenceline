@@ -9,7 +9,7 @@ The tool must be re-runnable after the stack changes and removable without leavi
 
 ## Decision
 
-Generated docs carry `<!-- agent-ready:managed:begin/end -->` markers; `refresh` replaces only the block. Everything else is namespaced (`.agent-ready/`, `agent-ready-*`) or merged into an existing hook config while preserving foreign entries. `uninstall` reverses exactly that set. A doc without markers is never overwritten unless `--force`.
+Generated docs carry `<!-- fenceline:managed:begin/end -->` markers; `refresh` replaces only the block. Everything else is namespaced (`.fenceline/`, `fenceline-*`) or merged into an existing hook config while preserving foreign entries. `uninstall` reverses exactly that set. A doc without markers is never overwritten unless `--force`.
 
 ## Consequences
 

@@ -21,7 +21,7 @@ if (!source || source === 'startup' || source === 'clear' || source === 'new') S
 
 const checks = (cfg.checks || []).map((c) => c.command);
 const lines = [
-  'agent-ready gates for this repository:',
+  'fenceline gates for this repository:',
   checks.length
     ? `- Before finishing any code change run: ${checks.join(' && ')} — the stop-hook runs them itself and will not let you finish otherwise.`
     : '- No lint / type-check commands are configured yet; say so in your answer if you change code.',

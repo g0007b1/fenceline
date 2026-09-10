@@ -13,12 +13,12 @@ if (!P.isEditTool(input)) P.allow();
 
 const root = P.realRoot(P.projectRoot(input));
 const cfg = loadConfig(root);
-if (cfg.corrupt) P.deny(runtime, `agent-ready: ${cfg.corruptReason}. Refusing all edits until the config is restored (fail-closed).`, 'PreToolUse', { root, tool: P.toolName(input) });
+if (cfg.corrupt) P.deny(runtime, `fenceline: ${cfg.corruptReason}. Refusing all edits until the config is restored (fail-closed).`, 'PreToolUse', { root, tool: P.toolName(input) });
 
 const targets = P.editedPaths(input);
 if (!targets.length) {
   if (cfg.failClosed === false) P.allow();
-  P.deny(runtime, 'agent-ready: could not determine the target path of this edit; refusing (fail-closed). If this tool is legitimate, set "failClosed": false in .agent-ready/config.json.', 'PreToolUse', { root, tool: P.toolName(input) });
+  P.deny(runtime, 'fenceline: could not determine the target path of this edit; refusing (fail-closed). If this tool is legitimate, set "failClosed": false in .fenceline/config.json.', 'PreToolUse', { root, tool: P.toolName(input) });
 }
 
 const ctx = { root, denyWrite: toRegExps(cfg.denyWrite), denyRead: toRegExps(cfg.denyRead), isInsideTmp: P.isInsideTmp };
@@ -26,6 +26,6 @@ for (const target of targets) {
   const abs = P.realResolve(root, target);
   const rel = P.relativeToRoot(root, abs);
   const hit = classify(cfg, rel, abs, ctx);
-  if (hit) P.deny(runtime, `agent-ready: "${rel}" — ${hit.why}.`, 'PreToolUse', { root, tool: P.toolName(input), path: rel, kind: hit.kind });
+  if (hit) P.deny(runtime, `fenceline: "${rel}" — ${hit.why}.`, 'PreToolUse', { root, tool: P.toolName(input), path: rel, kind: hit.kind });
 }
 P.allow();

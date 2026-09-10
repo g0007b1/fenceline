@@ -1,11 +1,11 @@
 cff-version: 1.2.0
 message: If you reference this tool, please cite it as below.
-title: "agent-ready: runtime-enforced guardrails and layered docs for AI coding agents"
+title: "fenceline: runtime-enforced guardrails and layered docs for AI coding agents"
 type: software
 authors:
   - family-names: Izgagin
     given-names: Dmitry
-repository-code: https://github.com/g0007b1/agent-ready
+repository-code: https://github.com/g0007b1/fenceline
 license: MIT
 version: 0.4.0
 date-released: 2026-09-10

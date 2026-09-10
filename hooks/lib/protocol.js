@@ -24,7 +24,7 @@ function readStdin() {
 
 const RUNTIMES = ['cursor', 'claude', 'codex', 'gemini', 'copilot'];
 function detectRuntime(input) {
-  const explicit = (argFlag('runtime') || process.env.AGENT_READY_RUNTIME || '').toLowerCase();
+  const explicit = (argFlag('runtime') || process.env.FENCELINE_RUNTIME || '').toLowerCase();
   if (RUNTIMES.includes(explicit)) return explicit;
   if (input.toolName !== undefined && input.toolArgs !== undefined) return 'copilot';
   if (input.session_id && input.hook_event_name && /^[A-Z]/.test(input.hook_event_name)) return 'claude';
@@ -32,12 +32,12 @@ function detectRuntime(input) {
   return 'cursor';
 }
 
-// Walk up from a directory to the one that contains .agent-ready/config.json.
+// Walk up from a directory to the one that contains .fenceline/config.json.
 function findRoot(start) {
   if (!start) return null;
   let d = path.resolve(start);
   for (let i = 0; i < 40; i++) {
-    if (fs.existsSync(path.join(d, '.agent-ready', 'config.json'))) return d;
+    if (fs.existsSync(path.join(d, '.fenceline', 'config.json'))) return d;
     const parent = path.dirname(d);
     if (parent === d) return null;
     d = parent;
@@ -46,7 +46,7 @@ function findRoot(start) {
 }
 
 function projectRoot(input) {
-  const explicit = argFlag('root') || process.env.AGENT_READY_ROOT;
+  const explicit = argFlag('root') || process.env.FENCELINE_ROOT;
   if (explicit) return path.resolve(explicit);
   const candidates = [
     Array.isArray(input.workspace_roots) && input.workspace_roots[0],
@@ -140,16 +140,21 @@ function realResolve(root, p) {
 }
 function realRoot(root) { try { return fs.realpathSync.native ? fs.realpathSync.native(root) : fs.realpathSync(root); } catch { return root; } }
 
-const TMP_DIRS = [os.tmpdir(), '/tmp', '/private/tmp', '/var/tmp', process.env.TMPDIR, process.env.TEMP, process.env.TMP].filter(Boolean).map((d) => { try { return fs.realpathSync(d); } catch { return d; } });
+// Same realpath flavour as realResolve (native expands Windows 8.3 names like RUNNER~1); case-insensitive on Windows.
+const real = (p) => { try { return fs.realpathSync.native ? fs.realpathSync.native(p) : fs.realpathSync(p); } catch { return p; } };
+const norm = (p) => (process.platform === 'win32' ? String(p).toLowerCase() : String(p));
+const TMP_RAW = [os.tmpdir(), '/tmp', '/private/tmp', '/var/tmp', process.env.TMPDIR, process.env.TEMP, process.env.TMP].filter(Boolean);
+const TMP_DIRS = [...new Set([...TMP_RAW, ...TMP_RAW.map(real)].map(norm))];
 function isInsideTmp(absPath) {
   if (!absPath) return false;
-  return TMP_DIRS.some((t) => absPath === t || absPath.startsWith(t + path.sep));
+  const a = norm(absPath);
+  return TMP_DIRS.some((t) => a === t || a.startsWith(t + path.sep));
 }
 
 // ---------- audit ----------
 function audit(root, entry) {
   try {
-    const p = path.join(root, '.agent-ready', 'audit.log');
+    const p = path.join(root, '.fenceline', 'audit.log');
     fs.appendFileSync(p, JSON.stringify({ ts: new Date().toISOString(), ...entry }) + '\n');
   } catch { /* best effort */ }
 }

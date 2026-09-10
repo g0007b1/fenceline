@@ -1,6 +1,6 @@
 # Hooks: what runs when, and the wire format
 
-Seven scripts live in `.agent-ready/hooks/` inside the target repo (copied on init) and read `.agent-ready/config.json` on every call. Session state is in `.agent-ready/state/<session>.json`, denies/asks in `.agent-ready/audit.log` (gitignored). The runtime is passed as `--runtime cursor|claude|codex|gemini|copilot`. Full reference: `docs/hooks.md` in the agent-ready repo.
+Seven scripts live in `.fenceline/hooks/` inside the target repo (copied on init) and read `.fenceline/config.json` on every call. Session state is in `.fenceline/state/<session>.json`, denies/asks in `.fenceline/audit.log` (gitignored). The runtime is passed as `--runtime cursor|claude|codex|gemini|copilot`. Full reference: `docs/hooks.md` in the fenceline repo.
 
 | Script | Cursor event | Claude Code event | Purpose |
 | --- | --- | --- | --- |
@@ -12,7 +12,7 @@ Seven scripts live in `.agent-ready/hooks/` inside the target repo (copied on in
 | track-checks.js | afterShellExecution | PostToolUse (Bash) | Records which configured checks ran and whether they passed |
 | ensure-checks.js | stop (loop_limit) | Stop | Runs the checks itself, then review → docs sync |
 
-## Config the hooks read (`.agent-ready/config.json`)
+## Config the hooks read (`.fenceline/config.json`)
 
 - `checks`: `[{ "id": "lint", "command": "npm run lint" }]` — full shell commands, matched loosely (`pnpm lint` counts for `npm run lint`).
 - `denyWrite` / `denyShell` / `integrationTriggers`: regexes stored as `{ "source", "flags" }`; `denyShell` entries also carry `why` and `severity` (`deny` | `ask`).
@@ -45,14 +45,14 @@ Claude Code (stdin JSON → stdout JSON or exit code): PreToolUse `{ hookSpecifi
 
 ## Adding a custom guard
 
-1. Add a pattern to `.agent-ready/config.json` (`denyWrite`: `{ "source": "^infra/", "flags": "" }`; `denyShell`: `{ "source": "terraform\\s+apply", "flags": "", "why": "infra is human-only", "severity": "deny" }`).
-2. `npx agent-ready doctor` to confirm.
+1. Add a pattern to `.fenceline/config.json` (`denyWrite`: `{ "source": "^infra/", "flags": "" }`; `denyShell`: `{ "source": "terraform\\s+apply", "flags": "", "why": "infra is human-only", "severity": "deny" }`).
+2. `npx fenceline doctor` to confirm.
 3. Mention the ban in AGENTS.md "Hard bans" so humans know it exists.
 
 Config is read on every hook invocation — no restart needed.
 
 ## If a hook did not fire
 
-- Cursor: hooks only run for the Agent mode; check `.cursor/hooks.json` contains `.agent-ready/hooks/` commands and restart the agent session.
+- Cursor: hooks only run for the Agent mode; check `.cursor/hooks.json` contains `.fenceline/hooks/` commands and restart the agent session.
 - Claude Code: `.claude/settings.json` must contain the `hooks` block; `/hooks` in the CLI lists what is active. `$CLAUDE_PROJECT_DIR` must resolve — run from the repo root.
-- Run the script by hand: `echo '{"tool_name":"Write","tool_input":{"file_path":".env"}}' | node .agent-ready/hooks/guard-write.js --runtime cursor --root "$PWD"`.
+- Run the script by hand: `echo '{"tool_name":"Write","tool_input":{"file_path":".env"}}' | node .fenceline/hooks/guard-write.js --runtime cursor --root "$PWD"`.

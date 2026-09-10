@@ -1,12 +1,12 @@
 'use strict';
 // Minimal interactive prompts on top of readline — no dependencies, works in any terminal.
-// Interactive only when stdin is a TTY (or AGENT_READY_INTERACTIVE=1 for tests); otherwise every
+// Interactive only when stdin is a TTY (or FENCELINE_INTERACTIVE=1 for tests); otherwise every
 // prompt returns its default so CI and scripts never hang.
 const readline = require('readline');
 
 function isInteractive() {
-  if (process.env.AGENT_READY_INTERACTIVE === '1') return true;
-  if (process.env.AGENT_READY_INTERACTIVE === '0' || process.env.CI) return false;
+  if (process.env.FENCELINE_INTERACTIVE === '1') return true;
+  if (process.env.FENCELINE_INTERACTIVE === '0' || process.env.CI) return false;
   return !!(process.stdin.isTTY && process.stdout.isTTY);
 }
 

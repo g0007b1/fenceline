@@ -1,5 +1,5 @@
 'use strict';
-// uninstall: the clean inverse of init. Removes everything namespaced (.agent-ready/, agent-ready-* rules
+// uninstall: the clean inverse of init. Removes everything namespaced (.fenceline/, fenceline-* rules
 // and commands, our hook entries, our .gitignore lines). Docs are yours by then — kept unless --docs,
 // which strips only the managed blocks.
 const fs = require('fs');
@@ -11,14 +11,14 @@ function rmIf(p) { if (fs.existsSync(p)) { fs.rmSync(p, { recursive: true, force
 
 function uninstall(root, { docs = false } = {}) {
   const removed = [];
-  if (rmIf(path.join(root, '.agent-ready'))) removed.push('.agent-ready/');
+  if (rmIf(path.join(root, '.fenceline'))) removed.push('.fenceline/');
   for (const a of Object.values(adapters)) {
     const r = a.removeHooksConfig(root);
     if (r) removed.push(`${r.file} (${r.status})`);
     for (const dir of [a.rulesPath, a.commandsPath].filter(Boolean)) {
       const abs = path.join(root, dir);
       if (!fs.existsSync(abs)) continue;
-      for (const f of fs.readdirSync(abs)) if (f.startsWith('agent-ready-')) { fs.unlinkSync(path.join(abs, f)); removed.push(`${dir}/${f}`); }
+      for (const f of fs.readdirSync(abs)) if (f.startsWith('fenceline-')) { fs.unlinkSync(path.join(abs, f)); removed.push(`${dir}/${f}`); }
       if (!fs.readdirSync(abs).length) fs.rmdirSync(abs);
     }
   }

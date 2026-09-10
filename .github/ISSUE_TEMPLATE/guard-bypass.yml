@@ -31,5 +31,5 @@ body:
   - type: textarea
     id: config
     attributes:
-      label: .agent-ready/config.json (relevant parts)
+      label: .fenceline/config.json (relevant parts)
       render: json

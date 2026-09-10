@@ -28,8 +28,8 @@ function hits(text, words) { return words.filter((w) => text.includes(w.toLowerC
 
 function triage(root, text) {
   const t = tokens(text);
-  const profilePath = path.join(root, '.agent-ready', 'profile.json');
-  const cfgPath = path.join(root, '.agent-ready', 'config.json');
+  const profilePath = path.join(root, '.fenceline', 'profile.json');
+  const cfgPath = path.join(root, '.fenceline', 'config.json');
   const profile = fs.existsSync(profilePath) ? JSON.parse(fs.readFileSync(profilePath, 'utf8')) : null;
   const cfg = fs.existsSync(cfgPath) ? JSON.parse(fs.readFileSync(cfgPath, 'utf8')) : null;
   const preset = getPreset(cfg ? cfg.preset : (profile ? profile.preset : 'generic'));
@@ -82,7 +82,7 @@ function triage(root, text) {
 
 function format(r) {
   const tag = { auto: 'AUTO  — safe for an automatic PR', 'needs-ac': 'NEEDS-AC — under-specified', human: 'HUMAN — outside the safe-list' }[r.verdict];
-  const lines = [`\nagent-ready triage → ${tag}\n`, ...r.reasons.map((x) => `  - ${x}`)];
+  const lines = [`\nfenceline triage → ${tag}\n`, ...r.reasons.map((x) => `  - ${x}`)];
   if (r.domainDocs.length) lines.push(`  - read first: ${r.domainDocs.join(', ')}`);
   lines.push(`\n  Next: ${r.next}\n`);
   return lines.join('\n');

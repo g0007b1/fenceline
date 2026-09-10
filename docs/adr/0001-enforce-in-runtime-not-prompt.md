@@ -14,5 +14,5 @@ Every rule that matters is backed by a hook the runtime executes: `PreToolUse` g
 ## Consequences
 
 - A runtime without a hook API gets docs with an explicit "not enforced" banner rather than false comfort.
-- Every ban in `AGENTS.md` must correspond to a pattern in `.agent-ready/config.json` or be marked "convention".
+- Every ban in `AGENTS.md` must correspond to a pattern in `.fenceline/config.json` or be marked "convention".
 - The tool needs an adapter per runtime and must track their wire formats; `hooks/lib/protocol.js` is the single place for that.

@@ -1,6 +1,6 @@
 Decide whether this task may be done autonomously or needs a human, before writing any code: `$ARGUMENTS`
 
-1. Run `npx agent-ready triage "<the task text>"` and read the verdict and reasons.
+1. Run `npx fenceline triage "<the task text>"` and read the verdict and reasons.
 2. Read `docs/agent-safe-tasks.md` and the "Hard bans" in `AGENTS.md`.
 3. Map the task to concrete files (`rg`, the "Key entities" table in `CLAUDE.md`). Check whether any of them is a protected path or inside a fragile zone (`docs/README.md`).
 4. Answer with exactly:

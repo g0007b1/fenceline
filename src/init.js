@@ -1,6 +1,6 @@
 'use strict';
 // init / refresh: scan → preset (+ layers / modules) → config → files (hooks, rules, commands, docs).
-// Everything generated is marker-managed (docs), namespaced (.agent-ready/, agent-ready-*) or merged
+// Everything generated is marker-managed (docs), namespaced (.fenceline/, fenceline-*) or merged
 // (hooks config), so re-running is safe and uninstall is a clean inverse.
 const fs = require('fs');
 const path = require('path');
@@ -12,8 +12,8 @@ const R = require('./render');
 const { getProfile, COMPONENTS } = require('./profiles');
 
 const HOOK_SCRIPTS = ['guard-write.js', 'guard-read.js', 'guard-shell.js', 'track-edit.js', 'track-checks.js', 'ensure-checks.js', 'session-start.js'];
-const COMMANDS = ['agent-ready-review', 'agent-ready-pr', 'agent-ready-handoff', 'agent-ready-domain-doc', 'agent-ready-triage'];
-const GITIGNORE = ['.agent-ready/state/', '.agent-ready/state.json', '.agent-ready/profile.json', '.agent-ready/audit.log', '.env', '.env.*', '!.env.example', '!.env.sample'];
+const COMMANDS = ['fenceline-review', 'fenceline-pr', 'fenceline-handoff', 'fenceline-domain-doc', 'fenceline-triage'];
+const GITIGNORE = ['.fenceline/state/', '.fenceline/state.json', '.fenceline/profile.json', '.fenceline/audit.log', '.env', '.env.*', '!.env.example', '!.env.sample'];
 
 const serialize = (re) => ({ source: re.source, flags: re.flags });
 const serializePath = (x) => ({ source: x.re.source, flags: x.re.flags, label: x.label || null });
@@ -70,7 +70,7 @@ function buildConfig(profile, preset, opts) {
 
 function checkCommands(cfg) {
   const cmds = cfg.checks.map((c) => c.command);
-  return cmds.length ? cmds.join('\n') : '# TODO(agent-ready): no lint / type-check commands detected — add them (see `agent-ready scan` warnings); hooks cannot enforce what does not exist';
+  return cmds.length ? cmds.join('\n') : '# TODO(fenceline): no lint / type-check commands detected — add them (see `fenceline scan` warnings); hooks cannot enforce what does not exist';
 }
 
 function hardBans(cfg, profile, preset) {
@@ -78,7 +78,7 @@ function hardBans(cfg, profile, preset) {
   const labels = [...new Set(cfg.denyWrite.map((p) => p.label).filter(Boolean))];
   lines.push(`- Protected paths — writes are denied by hooks, from edit tools **and** from the shell: ${labels.join('; ')}.`);
   lines.push('- Secrets (`.env`, keys, credentials) are never read into the agent context; `.env.example` is the interface.');
-  lines.push('- The hook machinery (`.agent-ready/`, the runtime hook config) is protected; an unreadable config denies everything (fail-closed).');
+  lines.push('- The hook machinery (`.fenceline/`, the runtime hook config) is protected; an unreadable config denies everything (fail-closed).');
   if (cfg.siblings.length) lines.push(`- Sibling repositories are **read-only**: ${cfg.siblings.map((s) => '`' + s + '`').join(', ')} — from edit tools and from the shell (\`cd\` chains included). Record mismatches in \`docs/handoffs/\`.`);
   lines.push(`- Protected branches (${cfg.protectedBranches.map((b) => '`' + b + '`').join(', ')}): no direct push, no force-push, no \`git reset --hard\`, no \`git clean -f\` — parsed, not pattern-matched, so \`feature/main-page\` is fine.`);
   for (const b of preset.hardBans) lines.push(`- ${b}`);
@@ -124,7 +124,7 @@ function dataLayer(stack) {
 
 // Previous answers (from an earlier init) are the defaults for refresh.
 function previousConfig(root) {
-  try { return JSON.parse(fs.readFileSync(path.join(root, '.agent-ready', 'config.json'), 'utf8')); } catch { return null; }
+  try { return JSON.parse(fs.readFileSync(path.join(root, '.fenceline', 'config.json'), 'utf8')); } catch { return null; }
 }
 
 function run(root, opts) {
@@ -161,20 +161,20 @@ function run(root, opts) {
   const writeFile = (target, content) => { if (!dry) { fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, content); } };
 
   // 1. config (always) + hooks (component)
-  if (!dry) fs.mkdirSync(path.join(root, '.agent-ready'), { recursive: true });
+  if (!dry) fs.mkdirSync(path.join(root, '.fenceline'), { recursive: true });
   if (has('hooks')) {
-    const hooksDir = path.join(root, '.agent-ready', 'hooks');
+    const hooksDir = path.join(root, '.fenceline', 'hooks');
     if (!dry) {
       fs.mkdirSync(path.join(hooksDir, 'lib'), { recursive: true });
       for (const f of HOOK_SCRIPTS) fs.copyFileSync(path.join(__dirname, '..', 'hooks', f), path.join(hooksDir, f));
       for (const f of fs.readdirSync(path.join(__dirname, '..', 'hooks', 'lib'))) fs.copyFileSync(path.join(__dirname, '..', 'hooks', 'lib', f), path.join(hooksDir, 'lib', f));
     }
-    rec('.agent-ready/hooks/*', 'installed');
+    rec('.fenceline/hooks/*', 'installed');
   }
-  writeFile(path.join(root, '.agent-ready', 'config.json'), JSON.stringify(cfg, null, 2) + '\n');
-  rec('.agent-ready/config.json', 'written');
-  writeFile(path.join(root, '.agent-ready', 'profile.json'), JSON.stringify(profile, null, 2) + '\n');
-  rec('.agent-ready/profile.json', 'written');
+  writeFile(path.join(root, '.fenceline', 'config.json'), JSON.stringify(cfg, null, 2) + '\n');
+  rec('.fenceline/config.json', 'written');
+  writeFile(path.join(root, '.fenceline', 'profile.json'), JSON.stringify(profile, null, 2) + '\n');
+  rec('.fenceline/profile.json', 'written');
   if (!dry) ensureGitignore(root, GITIGNORE);
   if (has('hooks')) {
     for (const a of adapters) {
@@ -187,7 +187,7 @@ function run(root, opts) {
   // 2. template variables
   const vars = {
     name: profile.stack.name, rulesPath,
-    stackLine: profile.stack.summary.join(', ') || 'TODO(agent-ready): describe the stack',
+    stackLine: profile.stack.summary.join(', ') || 'TODO(fenceline): describe the stack',
     checkCommands: checkCommands(cfg),
     hardBans: hardBans(cfg, profile, preset), branchPrefix: cfg.branchPrefix, baseBranch: cfg.baseBranch,
     safeAuto: preset.safeAuto.map((s) => `- ${s}`).join('\n'), safeHuman: preset.safeHuman.map((s) => `- ${s}`).join('\n'),
@@ -197,7 +197,7 @@ function run(root, opts) {
     runtimesLine: adapters.map((a) => a.label).join(' / '),
     enforcementNote: has('hooks') && enforcing.length
       ? `Gates in this file are **enforced by hooks** for ${enforcing.map((a) => a.label).join(', ')} (profile: ${cfg.profile}): protected paths and destructive commands are denied, and the stop-hook runs the checks itself and refuses to finish until they are green.${enforcing.some((a) => a.experimental) ? ' Runtimes marked experimental in README were wired from their published hook docs and are not yet verified against a live session.' : ''}\n`
-      : '> **Note:** hooks are not installed in this repository. Everything below is convention, not enforcement — review accordingly. (`npx agent-ready refresh --only hooks` adds them.)\n',
+      : '> **Note:** hooks are not installed in this repository. Everything below is convention, not enforcement — review accordingly. (`npx fenceline refresh --only hooks` adds them.)\n',
   };
 
   // 3. rules + commands, per runtime
@@ -206,7 +206,7 @@ function run(root, opts) {
       for (const rule of preset.rules) {
         const raw = R.render(fs.readFileSync(rule.path, 'utf8').replace(/\r\n/g, '\n'), vars);
         const body = a.convertRule ? a.convertRule(raw) : raw;
-        const target = path.join(root, a.rulesPath, 'agent-ready-' + rule.name.replace(/\.mdc$/, a.ruleExt));
+        const target = path.join(root, a.rulesPath, 'fenceline-' + rule.name.replace(/\.mdc$/, a.ruleExt));
         const existed = fs.existsSync(target);
         writeFile(target, body);
         rec(path.relative(root, target), existed ? 'updated' : 'created');
@@ -277,7 +277,7 @@ function detectBaseBranch(root) {
 }
 
 // Our entries live in a delimited block so uninstall can remove exactly what we added.
-const GI_BEGIN = '# agent-ready:begin', GI_END = '# agent-ready:end';
+const GI_BEGIN = '# fenceline:begin', GI_END = '# fenceline:end';
 function ensureGitignore(root, entries) {
   const file = path.join(root, '.gitignore');
   let existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';

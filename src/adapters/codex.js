@@ -8,8 +8,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const OURS = '.agent-ready/hooks/';
-function hookCmd(script) { return `node .agent-ready/hooks/${script} --runtime codex`; }
+const OURS = '.fenceline/hooks/';
+function hookCmd(script) { return `node .fenceline/hooks/${script} --runtime codex`; }
 function entry(matcher, script, extra) {
   const e = { hooks: [{ type: 'command', command: hookCmd(script), ...(extra || {}) }] };
   if (matcher) e.matcher = matcher;

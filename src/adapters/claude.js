@@ -7,8 +7,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const OURS = '.agent-ready/hooks/';
-function hookCmd(script) { return `node "$CLAUDE_PROJECT_DIR/.agent-ready/hooks/${script}" --runtime claude`; }
+const OURS = '.fenceline/hooks/';
+function hookCmd(script) { return `node "$CLAUDE_PROJECT_DIR/.fenceline/hooks/${script}" --runtime claude`; }
 function entry(matcher, script, extra) {
   const e = { hooks: [{ type: 'command', command: hookCmd(script), ...(extra || {}) }] };
   if (matcher) e.matcher = matcher;
@@ -32,7 +32,7 @@ function writeHooksConfig(root, cfg) {
   let status = 'created';
   if (fs.existsSync(file)) {
     try { settings = JSON.parse(fs.readFileSync(file, 'utf8')); status = 'updated'; }
-    catch (e) { throw new Error(`${file} is not valid JSON (${e.message}). Fix or remove it, then re-run — agent-ready never overwrites a settings file it cannot parse.`); }
+    catch (e) { throw new Error(`${file} is not valid JSON (${e.message}). Fix or remove it, then re-run — fenceline never overwrites a settings file it cannot parse.`); }
   }
   settings.hooks = settings.hooks || {};
   for (const [event, list] of Object.entries(ourHooks(cfg))) {

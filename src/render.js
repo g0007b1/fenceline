@@ -1,13 +1,13 @@
 'use strict';
 // Minimal template rendering + managed-block merging.
-// Managed blocks are delimited by <!-- agent-ready:managed:begin/end -->.
+// Managed blocks are delimited by <!-- fenceline:managed:begin/end -->.
 // On refresh we replace only the managed block and keep everything the humans wrote around it.
 
 const fs = require('fs');
 const path = require('path');
 
-const BEGIN = '<!-- agent-ready:managed:begin -->';
-const END = '<!-- agent-ready:managed:end -->';
+const BEGIN = '<!-- fenceline:managed:begin -->';
+const END = '<!-- fenceline:managed:end -->';
 
 function render(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => (vars[key] == null ? '' : String(vars[key])));

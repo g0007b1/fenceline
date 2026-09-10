@@ -1,5 +1,5 @@
 'use strict';
-// GitHub Copilot (coding agent + CLI) adapter: .github/hooks/agent-ready.json per
+// GitHub Copilot (coding agent + CLI) adapter: .github/hooks/fenceline.json per
 // https://docs.github.com/en/copilot/reference/hooks-reference — {version:1, hooks:{preToolUse:[{type:"command", bash, powershell}]}},
 // stdin {toolName, toolArgs, cwd}, stdout {"permissionDecision":"allow|deny|ask"}. Rules go to
 // .github/instructions/*.instructions.md (applyTo frontmatter); AGENTS.md is read natively.
@@ -8,11 +8,11 @@ const fs = require('fs');
 const path = require('path');
 
 function cmd(script) {
-  return { type: 'command', bash: `node .agent-ready/hooks/${script} --runtime copilot`, powershell: `node .agent-ready/hooks/${script} --runtime copilot`, timeoutSec: 60 };
+  return { type: 'command', bash: `node .fenceline/hooks/${script} --runtime copilot`, powershell: `node .fenceline/hooks/${script} --runtime copilot`, timeoutSec: 60 };
 }
 
 function writeHooksConfig(root, cfg) {
-  const file = path.join(root, '.github', 'hooks', 'agent-ready.json');
+  const file = path.join(root, '.github', 'hooks', 'fenceline.json');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const stopTimeout = Math.ceil((cfg.checkTimeoutMs || 180000) / 1000) * (cfg.checks || []).length + 30;
   const out = {
@@ -26,18 +26,18 @@ function writeHooksConfig(root, cfg) {
   };
   const status = fs.existsSync(file) ? 'updated' : 'created';
   fs.writeFileSync(file, JSON.stringify(out, null, 2) + '\n');
-  return { file: '.github/hooks/agent-ready.json', status };
+  return { file: '.github/hooks/fenceline.json', status };
 }
 
 function removeHooksConfig(root) {
-  const file = path.join(root, '.github', 'hooks', 'agent-ready.json');
+  const file = path.join(root, '.github', 'hooks', 'fenceline.json');
   if (!fs.existsSync(file)) return null;
   fs.unlinkSync(file);
   try { if (!fs.readdirSync(path.dirname(file)).length) fs.rmdirSync(path.dirname(file)); } catch { /* keep */ }
-  return { file: '.github/hooks/agent-ready.json', status: 'removed' };
+  return { file: '.github/hooks/fenceline.json', status: 'removed' };
 }
 
-function isWired(root) { return fs.existsSync(path.join(root, '.github', 'hooks', 'agent-ready.json')); }
+function isWired(root) { return fs.existsSync(path.join(root, '.github', 'hooks', 'fenceline.json')); }
 
 // .mdc frontmatter → Copilot instructions frontmatter (applyTo).
 function convertRule(content) {
@@ -54,4 +54,4 @@ function convertRule(content) {
   return fm.join('\n') + '\n' + body;
 }
 
-module.exports = { id: 'copilot', hooksFile: '.github/hooks/agent-ready.json', label: 'GitHub Copilot', enforces: true, experimental: true, rulesPath: '.github/instructions', ruleExt: '.instructions.md', commandsPath: null, writeHooksConfig, removeHooksConfig, isWired, convertRule };
+module.exports = { id: 'copilot', hooksFile: '.github/hooks/fenceline.json', label: 'GitHub Copilot', enforces: true, experimental: true, rulesPath: '.github/instructions', ruleExt: '.instructions.md', commandsPath: null, writeHooksConfig, removeHooksConfig, isWired, convertRule };

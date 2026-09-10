@@ -3,7 +3,7 @@
 // Those are the places where a newcomer (human or agent) breaks things — they get a domain doc.
 const { execSync } = require('child_process');
 
-const IGNORE = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next', '.expo', 'android', 'ios', '.turbo', '.cache', 'out', 'vendor', '.agent-ready', 'target', '__pycache__', '.venv', 'venv']);
+const IGNORE = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next', '.expo', 'android', 'ios', '.turbo', '.cache', 'out', 'vendor', '.fenceline', 'target', '__pycache__', '.venv', 'venv']);
 const FIX_RE = /\b(fix|bug|hotfix|regress|revert|broken|crash|patch)\b/i;
 const NOISE_RE = /\.(lock|snap|min\.js|map|png|jpg|jpeg|gif|svg|webp|ico|pdf)$|package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|uv\.lock|Cargo\.lock|go\.sum/;
 

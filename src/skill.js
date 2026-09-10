@@ -1,16 +1,16 @@
 'use strict';
-// skill: copy the agent-ready skill into a skills directory the agent runtime reads,
-// so "finish the setup with the agent-ready skill" works from a fresh session.
+// skill: copy the fenceline skill into a skills directory the agent runtime reads,
+// so "finish the setup with the fenceline skill" works from a fresh session.
 const fs = require('fs');
 const path = require('path');
 
-const SRC = path.join(__dirname, '..', 'skill', 'agent-ready');
+const SRC = path.join(__dirname, '..', 'skill', 'fenceline');
 
 function defaultTarget(root) {
-  if (fs.existsSync(path.join(root, '.agents'))) return path.join(root, '.agents', 'skills', 'agent-ready');
-  if (fs.existsSync(path.join(root, '.claude'))) return path.join(root, '.claude', 'skills', 'agent-ready');
-  if (fs.existsSync(path.join(root, '.cursor'))) return path.join(root, '.cursor', 'skills', 'agent-ready');
-  return path.join(root, '.agents', 'skills', 'agent-ready');
+  if (fs.existsSync(path.join(root, '.agents'))) return path.join(root, '.agents', 'skills', 'fenceline');
+  if (fs.existsSync(path.join(root, '.claude'))) return path.join(root, '.claude', 'skills', 'fenceline');
+  if (fs.existsSync(path.join(root, '.cursor'))) return path.join(root, '.cursor', 'skills', 'fenceline');
+  return path.join(root, '.agents', 'skills', 'fenceline');
 }
 
 function installSkill(root, to) {

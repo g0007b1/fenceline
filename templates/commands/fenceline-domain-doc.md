@@ -1,4 +1,4 @@
-Fill or refresh the domain doc for a fragile zone: `$ARGUMENTS` (a directory such as `src/features/booking`; if empty, list `docs/*.md` files that still contain `TODO(agent-ready)` and pick the first).
+Fill or refresh the domain doc for a fragile zone: `$ARGUMENTS` (a directory such as `src/features/booking`; if empty, list `docs/*.md` files that still contain `TODO(fenceline)` and pick the first).
 
 Sources, in this order — do not invent anything:
 

@@ -3,27 +3,27 @@
 const path = require('path');
 const fs = require('fs');
 
-const HELP = `agent-ready — make any repository safe and productive for AI coding agents
+const HELP = `fenceline — make any repository safe and productive for AI coding agents
 
 Usage:
-  agent-ready scan      [dir] [--json]        Detect stack, checks, risk zones, fragile areas. No writes.
-  agent-ready init      [dir] [options]       Interactive setup (wizard in a terminal; defaults with --yes / in CI).
-  agent-ready refresh   [dir] [options]       Re-run with the answers you gave last time; flags override.
-  agent-ready check     [dir] [--no-run]      Verify the setup: hooks wired, checks runnable, docs present.
-  agent-ready doctor    [dir] [--verbose]     Dry-run every guard (incl. bypass regressions) and simulate a session.
-  agent-ready triage    [dir] "<task>" [--json]  Is this task safe for an automatic PR? auto / needs-ac / human.
-  agent-ready config    get [key] | set <key> <value>   Read / change .agent-ready/config.json (dotted keys ok).
-  agent-ready runtimes                        Which agent runtimes are detected here, and what each gets.
-  agent-ready presets                         List stack presets.
-  agent-ready skill     [dir] [--to <path>]   Copy the agent-ready skill into the repo's skills directory.
-  agent-ready uninstall [dir] [--docs]        Remove everything agent-ready installed (--docs: also strip managed blocks).
+  fenceline scan      [dir] [--json]        Detect stack, checks, risk zones, fragile areas. No writes.
+  fenceline init      [dir] [options]       Interactive setup (wizard in a terminal; defaults with --yes / in CI).
+  fenceline refresh   [dir] [options]       Re-run with the answers you gave last time; flags override.
+  fenceline check     [dir] [--no-run]      Verify the setup: hooks wired, checks runnable, docs present.
+  fenceline doctor    [dir] [--verbose]     Dry-run every guard (incl. bypass regressions) and simulate a session.
+  fenceline triage    [dir] "<task>" [--json]  Is this task safe for an automatic PR? auto / needs-ac / human.
+  fenceline config    get [key] | set <key> <value>   Read / change .fenceline/config.json (dotted keys ok).
+  fenceline runtimes                        Which agent runtimes are detected here, and what each gets.
+  fenceline presets                         List stack presets.
+  fenceline skill     [dir] [--to <path>]   Copy the fenceline skill into the repo's skills directory.
+  fenceline uninstall [dir] [--docs]        Remove everything fenceline installed (--docs: also strip managed blocks).
 
 Options for init / refresh:
   -y, --yes                     No questions: detected runtimes, balanced profile, default components
   -i, --interactive             Force the wizard (also for refresh)
   --dry-run                     Show what would be written; write nothing
   --runtime <id>                cursor | claude | codex | gemini | copilot  (repeatable)
-  --preset <id>                 Override the detected stack preset (see: agent-ready presets)
+  --preset <id>                 Override the detected stack preset (see: fenceline presets)
   --profile <strict|balanced|light>   Strictness bundle (see below)
   --only <a,b>  /  --skip <a,b> Components: hooks, rules, commands, docs, domain-docs, templates, skill
   --no-review                   Stop hook does not ask for a self-review
@@ -42,10 +42,10 @@ Profiles:
   light      guards for secrets / git / hook machinery; checks must pass; no review or docs nudges; rm -r allowed
 
 Examples:
-  npx agent-ready init                                  # wizard
-  npx agent-ready init -y --runtime claude --profile strict
-  npx agent-ready init -y --only hooks,docs --no-review
-  npx agent-ready config set strictness.rmRecursive deny
+  npx fenceline init                                  # wizard
+  npx fenceline init -y --runtime claude --profile strict
+  npx fenceline init -y --only hooks,docs --no-review
+  npx fenceline config set strictness.rmRecursive deny
 `;
 
 const VALUE_FLAGS = new Set(['--preset', '--runtime', '--to', '--siblings', '--base-branch', '--branch-prefix', '--profile', '--only', '--skip', '--check', '--protected-branches']);
@@ -116,7 +116,7 @@ async function wizard(root, args, cmd) {
   const prev = cmd === 'refresh' ? previousConfig(root) : null;
   const profile = scan(root);
 
-  console.log(`\n${Pm.bold('agent-ready')} — ${profile.stack.summary.join(', ')}`);
+  console.log(`\n${Pm.bold('fenceline')} — ${profile.stack.summary.join(', ')}`);
   console.log(Pm.dim(`  checks: ${[profile.stack.checks.lint, profile.stack.checks.typeCheck].filter(Boolean).join(' && ') || 'none detected'}   risk zones: ${profile.risks.length}   fragile zones: ${profile.fragile.zones.length}`));
   for (const w of profile.warnings) console.log(Pm.dim(`  ! ${w}`));
 
@@ -144,22 +144,22 @@ async function wizard(root, args, cmd) {
 
 function summarise(cmd, result) {
   const { profile, cfg, preset, adapters, report, dry } = result;
-  console.log(`\nagent-ready ${cmd}${dry ? ' (dry run — nothing written)' : ''}: ${profile.stack.summary.join(', ')} → preset "${preset.id}"${cfg.layers.length ? ' + ' + cfg.layers.join(', ') : ''}${cfg.modules.length ? ' + ' + cfg.modules.join(', ') : ''}; runtimes: ${adapters.map((a) => a.label).join(', ')}; profile: ${cfg.profile}; components: ${cfg.components.join(', ')}\n`);
+  console.log(`\nfenceline ${cmd}${dry ? ' (dry run — nothing written)' : ''}: ${profile.stack.summary.join(', ')} → preset "${preset.id}"${cfg.layers.length ? ' + ' + cfg.layers.join(', ') : ''}${cfg.modules.length ? ' + ' + cfg.modules.join(', ') : ''}; runtimes: ${adapters.map((a) => a.label).join(', ')}; profile: ${cfg.profile}; components: ${cfg.components.join(', ')}\n`);
   for (const r of report) console.log(`  ${pad(r.status, 13)} ${r.file}`);
   if (profile.warnings.length) { console.log('\nWarnings:'); for (const w of profile.warnings) console.log(`  ! ${w}`); }
   if (cfg.components.includes('hooks')) console.log(`\nEnforced: ${cfg.checks.length ? cfg.checks.map((c) => c.command).join(' && ') : '(no checks yet)'} on stop; review gate ${cfg.gates.review ? 'on' : 'off'}; docs-sync gate ${cfg.gates.docsSync ? 'on' : 'off'}; ${cfg.denyWrite.length} protected path patterns; parsed git/rm/redirects + ${cfg.denyShell.length} shell rules.`);
-  else console.log('\nHooks not installed — nothing is enforced. `npx agent-ready refresh --only hooks` adds them.');
-  if (profile.siblings.length && !cfg.siblings.length) console.log(`Neighbouring repos detected (${profile.siblings.join(', ')}). To make them read-only for agents: npx agent-ready refresh --siblings ${profile.siblings.slice(0, 2).join(',')}`);
+  else console.log('\nHooks not installed — nothing is enforced. `npx fenceline refresh --only hooks` adds them.');
+  if (profile.siblings.length && !cfg.siblings.length) console.log(`Neighbouring repos detected (${profile.siblings.join(', ')}). To make them read-only for agents: npx fenceline refresh --siblings ${profile.siblings.slice(0, 2).join(',')}`);
   if (!dry) {
-    console.log('Next: npx agent-ready doctor   — prove the guards fire');
-    console.log('      fill the TODO(agent-ready) sections in CLAUDE.md and docs/*.md, or ask your agent: "finish the agent-ready setup" (npx agent-ready skill installs the skill).');
-    console.log('      change a knob later: npx agent-ready config set <key> <value>\n');
+    console.log('Next: npx fenceline doctor   — prove the guards fire');
+    console.log('      fill the TODO(fenceline) sections in CLAUDE.md and docs/*.md, or ask your agent: "finish the fenceline setup" (npx fenceline skill installs the skill).');
+    console.log('      change a knob later: npx fenceline config set <key> <value>\n');
   } else console.log('');
 }
 
 function configCmd(root, args) {
-  const file = path.join(root, '.agent-ready', 'config.json');
-  if (!fs.existsSync(file)) { console.error('Not initialised — run `npx agent-ready init` first.'); process.exit(1); }
+  const file = path.join(root, '.fenceline', 'config.json');
+  if (!fs.existsSync(file)) { console.error('Not initialised — run `npx fenceline init` first.'); process.exit(1); }
   const cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
   const [sub, key, ...rest] = args._;
   const get = (obj, k) => k.split('.').reduce((o, p) => (o == null ? undefined : o[p]), obj);
@@ -170,7 +170,7 @@ function configCmd(root, args) {
     return;
   }
   if (sub === 'set') {
-    if (!key || !rest.length) { console.error('Usage: agent-ready config set <key> <value>'); process.exit(1); }
+    if (!key || !rest.length) { console.error('Usage: fenceline config set <key> <value>'); process.exit(1); }
     const raw = rest.join(' ');
     let value; try { value = JSON.parse(raw); } catch { value = raw; }
     const parts = key.split('.');
@@ -180,10 +180,10 @@ function configCmd(root, args) {
     if (get(cfg, key) === undefined && !['gates', 'strictness', 'checks', 'siblings', 'protectedBranches', 'allowOutsideRoot', 'denyWrite', 'denyRead', 'denyShell'].includes(parts[0])) console.error(`(new key ${key} — hooks ignore keys they do not know)`);
     o[last] = value;
     fs.writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n');
-    console.log(`${key} = ${JSON.stringify(value)}   (hooks read the config on every call — no restart; run \`npx agent-ready doctor\` to verify)`);
+    console.log(`${key} = ${JSON.stringify(value)}   (hooks read the config on every call — no restart; run \`npx fenceline doctor\` to verify)`);
     return;
   }
-  console.error('Usage: agent-ready config get [key] | set <key> <value>'); process.exit(1);
+  console.error('Usage: fenceline config get [key] | set <key> <value>'); process.exit(1);
 }
 
 function runtimesCmd(root) {
@@ -234,7 +234,7 @@ async function main() {
       opts.checks = args.checks.length ? args.checks.map((c, i) => ({ id: `check${i + 1}`, command: c })) : null;
       if (args.noReview || args.noDocsSync) opts.gates = { ...(args.noReview ? { review: false } : {}), ...(args.noDocsSync ? { docsSync: false } : {}) };
       let result;
-      try { result = run(root, opts); } catch (e) { console.error(`\nagent-ready ${cmd} failed: ${e.message}\n`); process.exit(1); }
+      try { result = run(root, opts); } catch (e) { console.error(`\nfenceline ${cmd} failed: ${e.message}\n`); process.exit(1); }
       summarise(cmd, result);
       return;
     }
@@ -245,7 +245,7 @@ async function main() {
     case 'triage': {
       const { triage, format } = require('../src/triage');
       const text = args._.join(' ').trim();
-      if (!text) { console.error('Usage: agent-ready triage "<task text>"'); process.exit(1); }
+      if (!text) { console.error('Usage: fenceline triage "<task text>"'); process.exit(1); }
       const r = triage(root, text);
       if (args.json) process.stdout.write(JSON.stringify(r, null, 2) + '\n'); else console.log(format(r));
       process.exit(r.verdict === 'auto' ? 0 : r.verdict === 'needs-ac' ? 2 : 3);
@@ -256,7 +256,7 @@ async function main() {
     case 'skill': {
       const { installSkill } = require('../src/skill');
       const where = installSkill(root, args.to);
-      console.log(`\nSkill installed to ${where}\nTell your agent: "Finish the agent-ready setup for this repository using the agent-ready skill."\n`);
+      console.log(`\nSkill installed to ${where}\nTell your agent: "Finish the fenceline setup for this repository using the fenceline skill."\n`);
       return;
     }
     case 'presets': {
