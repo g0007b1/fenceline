@@ -1,0 +1,14 @@
+---
+description: Go conventions — errors, packages, generated code, tests
+globs: ["**/*.go"]
+alwaysApply: false
+---
+# Go conventions
+
+- Errors are values: wrap with `%w` and context, never swallow; sentinel errors and typed errors over string matching.
+- `internal/` is the boundary; other modules must not import it. Keep packages small and named for what they provide, not `utils`.
+- Generated code (`*.pb.go`, `gen/`, `*_gen.go`) is never hand-edited: change the source and rerun the generator.
+- Context is the first parameter of anything that does I/O; never store it in a struct.
+- No new goroutines without an owner that waits for them (errgroup / WaitGroup) and a cancellation path.
+- Tests are table-driven, use `t.Run` sub-tests, and never hit the network. `go test ./...` is the gate.
+- Run `gofmt` / `goimports`; the linter in the stop-hook must be green.

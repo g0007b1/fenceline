@@ -1,0 +1,16 @@
+---
+description: Keep docs in sync when integrations change (new dependency, env var, build/CI config)
+alwaysApply: true
+---
+# Docs sync on integration changes
+
+When a change adds a dependency, an environment variable, or edits build / CI / config files, update in the **same** change:
+
+- `README.md` — setup, env, how to run, new limitations
+- `.env.example` — every new variable, with a one-line comment
+- `AGENTS.md` / `CLAUDE.md` — only if the workflow, the stack line or a hard ban changed
+- the relevant domain doc in `docs/` — if a convention in a fragile zone changed
+
+The stop-hook asks for this when an integration-level file was edited. If nothing needs updating, say so explicitly — do not pad docs to satisfy the hook.
+
+Do not create a second "full README" inside rules; rules hold conventions, README holds facts.

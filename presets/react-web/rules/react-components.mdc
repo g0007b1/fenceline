@@ -1,0 +1,14 @@
+---
+description: React component conventions — structure, state placement, styling discipline
+globs: ["**/*.tsx", "**/*.jsx"]
+alwaysApply: false
+---
+# React components
+
+- One React component per file. A second component, even a "private" helper, goes to its own folder — do not wave it through as an internal helper.
+- Component = folder with an index file; import via path aliases, never `../../../`.
+- State placement: server state → the data layer ({{dataLayer}}); cross-cutting client state → the global store; everything else stays local.
+- No business logic in JSX. Components render; hooks and the data layer decide.
+- Styling: use the project theme / tokens. No hard-coded colour literals in UI code; a new token is added to the theme (light **and** dark if the app has both).
+- Lists that can exceed ~100 items are virtualised.
+- Every new component with logic gets a test next to it, asserting behaviour (text, roles, events) — not implementation details.

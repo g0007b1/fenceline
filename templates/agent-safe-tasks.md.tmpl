@@ -1,0 +1,29 @@
+# Agent safe-list — what an agent may ship without a human
+
+<!-- agent-ready:managed:begin -->
+The question is never "can the agent write this code" — it usually can. The question is
+**what it costs when it's wrong**. This list limits blast radius, not capability.
+
+## May be done autonomously (automatic PR is fine)
+
+{{safeAuto}}
+
+## Human-only (agent must stop and explain, no PR)
+
+{{safeHuman}}
+
+## Detected risk zones in this repository
+
+{{riskZones}}
+
+## Heuristics for the agent
+
+1. An `@path`, 1–3 files and Given / When / Then criteria → **probably safe**, even if the description mentions a risky word as context ("the offline banner overlaps the button" is a UI fix, not offline architecture).
+2. Stop when the task is about a **new** layer: SDK, auth flow, payment path, migration, protocol, cache, deploy.
+3. A risky word alone is not a stop. A risky *change* is.
+4. In doubt — **do not open a PR**. Write 2–3 sentences: what the task needs, why it is outside the safe-list, what a human should decide. A refusal is a normal outcome, not a failure.
+
+Check a task from the terminal: `npx agent-ready triage "<task text>"`.
+<!-- agent-ready:managed:end -->
+
+<!-- Add project-specific entries below; `agent-ready refresh` will not touch them. -->

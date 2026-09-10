@@ -1,0 +1,14 @@
+---
+description: Testing strategy — what to test, how, and what makes a test flaky
+globs: ["**/*.test.*", "**/*.spec.*", "**/*_test.*", "**/test_*.*", "**/__tests__/**", "**/tests/**"]
+alwaysApply: false
+---
+# Testing
+
+- Pure logic (helpers, reducers, domain functions): unit tests — many, fast, deterministic.
+- Code with I/O (HTTP, DB, filesystem): integration tests behind a boundary mock (network-level or a test database), not by mocking internal functions.
+- No real timers, no real network, no shared mutable fixtures. Wait for conditions, never sleep for fixed durations.
+- Every bug fix ships with a test that fails before the fix and passes after.
+- A flaky test is rewritten or deleted, never retried until green.
+- Snapshot tests only for output that must not change byte-for-byte; never as a substitute for assertions.
+- Test names state the behaviour ("rejects overlapping slots"), not the method name.

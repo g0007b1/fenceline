@@ -1,0 +1,14 @@
+---
+description: Python conventions — typing, boundaries, migrations, errors
+globs: ["**/*.py"]
+alwaysApply: false
+---
+# Python conventions
+
+- Type annotations on every public function; `Any` only with a comment saying why. The type checker in the stop-hook is the gate.
+- Validate at the boundary (pydantic / serializers / dataclasses with validation); inside the module trust the types.
+- No bare `except:`; catch the narrowest exception and re-raise with context (`raise ... from err`).
+- Migrations (Alembic / Django) are human-only. If a task needs one, describe the schema change and stop.
+- Settings come from one settings module reading the environment; no `os.environ` reads scattered through the code.
+- Views / routes are thin: parse, call a service, map the result. Business logic lives in services / domain modules.
+- Tests use pytest; fixtures over setup methods; no network, no real clock.

@@ -1,0 +1,31 @@
+name: New preset or runtime
+description: Ask for (or offer) support for a stack or an agent runtime
+title: "[preset] "
+labels: ["enhancement", "good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: A preset is one data file plus a rules file — see CONTRIBUTING.md. Runtimes need an adapter and, if the wire format is new, a change in hooks/lib/protocol.js.
+  - type: input
+    id: what
+    attributes:
+      label: Stack or runtime
+      placeholder: Ruby on Rails / Elixir Phoenix / Kiro / Windsurf
+    validations:
+      required: true
+  - type: textarea
+    id: bans
+    attributes:
+      label: What must an agent never touch alone in this stack?
+      placeholder: migrations, generated code, release commands…
+  - type: textarea
+    id: checks
+    attributes:
+      label: Which commands are the gates?
+      placeholder: rubocop, bundle exec rspec …
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contribution
+      options:
+        - label: I can open a PR for this

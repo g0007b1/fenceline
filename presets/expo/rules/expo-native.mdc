@@ -1,0 +1,12 @@
+---
+description: Expo managed workflow — native config only through app.config / plugins, never native folders
+alwaysApply: true
+---
+# Expo / native discipline
+
+- `android/` and `ios/` are not edited (hooks deny it). Native config lives in `app.config.*`, `plugins/`, `eas.json`.
+- A new native SDK, permission, or config plugin is a human-only task. Describe what is needed (package, plugin, permission strings, which build it requires) in the answer and stop.
+- Store builds and OTA updates are triggered by humans only. In the answer, say whether the change can ship as OTA (JS only) or needs a new native build.
+- Network images go through the project's image component, not a raw `Image` with a URI.
+- Any feature that only works in a development build (not Expo Go) is documented in README.
+- Environment: only `EXPO_PUBLIC_*` variables reach the client, read directly from `process.env` (no dynamic keys); new ones go into `.env.example` and the central env module.

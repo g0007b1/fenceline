@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f1117"/>
+      <stop offset="1" stop-color="#1b1f2a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1280" height="6" fill="url(#accent)"/>
+
+  <!-- left: name + claim -->
+  <text x="88" y="150" fill="#e6e8ef" font-size="66" font-weight="700" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, Helvetica, Arial, sans-serif">agent-ready</text>
+  <text x="90" y="205" fill="#9aa3b5" font-size="26" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, Helvetica, Arial, sans-serif">Hooks that deny, not prompts that hope.</text>
+  <text x="90" y="245" fill="#9aa3b5" font-size="26" font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, Helvetica, Arial, sans-serif">One command. Any repo. Any agent runtime.</text>
+
+  <rect x="90" y="290" width="330" height="54" rx="10" fill="#111827" stroke="#334155"/>
+  <text x="112" y="325" fill="#a5f3fc" font-size="22">$ npx agent-ready init</text>
+
+  <g font-family="ui-sans-serif, -apple-system, Segoe UI, Inter, Helvetica, Arial, sans-serif" font-size="18" fill="#cbd5e1">
+    <text x="90" y="400">Cursor · Claude Code · Codex · Gemini · Copilot</text>
+    <text x="90" y="430">Node · Python · Go · Rust · Makefile</text>
+    <text x="90" y="460">zero dependencies · MIT</text>
+  </g>
+
+  <!-- right: terminal card -->
+  <rect x="700" y="80" width="500" height="480" rx="14" fill="#0b0e14" stroke="#2a3140"/>
+  <circle cx="726" cy="106" r="6" fill="#ff5f56"/><circle cx="746" cy="106" r="6" fill="#ffbd2e"/><circle cx="766" cy="106" r="6" fill="#27c93f"/>
+  <g font-size="17">
+    <text x="726" y="150" fill="#94a3b8">$ npx agent-ready doctor</text>
+    <text x="726" y="190" fill="#e2e8f0">Guards:</text>
+    <text x="726" y="220" fill="#22c55e">  ok</text><text x="770" y="220" fill="#cbd5e1">write .env</text><text x="1090" y="220" fill="#f87171">deny</text>
+    <text x="726" y="248" fill="#22c55e">  ok</text><text x="770" y="248" fill="#cbd5e1">write prisma/migrations/…</text><text x="1090" y="248" fill="#f87171">deny</text>
+    <text x="726" y="276" fill="#22c55e">  ok</text><text x="770" y="276" fill="#cbd5e1">write src/components/Button.tsx</text><text x="1090" y="276" fill="#4ade80">allow</text>
+    <text x="726" y="304" fill="#22c55e">  ok</text><text x="770" y="304" fill="#cbd5e1">git push --force origin main</text><text x="1090" y="304" fill="#f87171">deny</text>
+    <text x="726" y="332" fill="#22c55e">  ok</text><text x="770" y="332" fill="#cbd5e1">echo x &gt; ../backend/notes.md</text><text x="1090" y="332" fill="#f87171">deny</text>
+    <text x="726" y="360" fill="#22c55e">  ok</text><text x="770" y="360" fill="#cbd5e1">npm run lint</text><text x="1090" y="360" fill="#4ade80">allow</text>
+    <text x="726" y="404" fill="#e2e8f0">Session simulation:</text>
+    <text x="726" y="434" fill="#22c55e">  ok</text><text x="770" y="434" fill="#cbd5e1">stop-hook demands checks after a code edit</text>
+    <text x="726" y="462" fill="#22c55e">  ok</text><text x="770" y="462" fill="#cbd5e1">stop-hook demands self-review once green</text>
+    <text x="726" y="490" fill="#22c55e">  ok</text><text x="770" y="490" fill="#cbd5e1">a red check sends the agent back</text>
+    <text x="726" y="530" fill="#a5f3fc">Guards behave as configured.</text>
+  </g>
+</svg>

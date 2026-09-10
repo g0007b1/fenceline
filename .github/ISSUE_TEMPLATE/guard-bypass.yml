@@ -1,0 +1,35 @@
+name: Guard bypass
+description: A forbidden action got through a hook (force-push, protected path, sibling write, stop-hook released with red checks)
+title: "[bypass] "
+labels: ["bug", "security"]
+body:
+  - type: markdown
+    attributes:
+      value: If the bypass is not yet public, prefer a private report via Security → Report a vulnerability.
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and version
+      placeholder: Cursor 2.x / Claude Code 2.x / Codex 0.x
+    validations:
+      required: true
+  - type: textarea
+    id: payload
+    attributes:
+      label: Exact command or edit-tool payload
+      description: Paste what the agent ran or the JSON the hook received (redact secrets).
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+      placeholder: deny / ask / stop-hook follow-up
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: .agent-ready/config.json (relevant parts)
+      render: json

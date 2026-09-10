@@ -1,0 +1,13 @@
+---
+description: How an agent works in this repository — scope, self-review, handoff, testing section
+alwaysApply: true
+---
+# Agent workflow
+
+- Read `AGENTS.md` once per session. Before touching a fragile zone, read its domain doc in `docs/` (index: `docs/README.md`).
+- Keep scope narrow: only what the task asks. No opportunistic refactors, renames or formatting sweeps. If you notice something worth fixing, mention it in the answer instead of fixing it.
+- Sibling repositories are read-only. A mismatch between the task / spec and what the sibling actually does → write `docs/handoffs/<date>-<slug>.md` from the template and say so in the answer.
+- Use the vocabulary from `CLAUDE.md` "Key entities". Do not invent synonyms for existing domain terms.
+- Before finishing: run the project checks, then self-review **your own diff** against these rules. If there is nothing to fix, say so explicitly.
+- Final answer always ends with **"How to test"**: automated tests you added or ran, manual steps as Given / When / Then, edge cases, platform or environment notes. For a pure refactor write "Behaviour unchanged" and say how you verified it.
+- If the task is outside `docs/agent-safe-tasks.md`: stop, explain the risk in 2–3 sentences, do not open a PR. A refusal is a normal outcome.

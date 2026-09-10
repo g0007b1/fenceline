@@ -1,0 +1,22 @@
+{
+  "name": "agent-ready",
+  "version": "0.4.0",
+  "description": "Hooks that deny, not prompts that hope. One command makes any repo safe and productive for AI coding agents: parsed shell guards, a stop hook that runs your checks, layered docs, safe-lists, fragile-zone detection. Cursor, Claude Code, Codex, Gemini CLI, Copilot. Node, Python, Go, Rust.",
+  "bin": { "agent-ready": "bin/agent-ready.js" },
+  "type": "commonjs",
+  "engines": { "node": ">=18" },
+  "files": ["bin", "src", "hooks", "presets", "templates", "skill", "docs", "README.md", "LICENSE"],
+  "scripts": {
+    "test": "node test/run.js",
+    "scan": "node bin/agent-ready.js scan"
+  },
+  "keywords": [
+    "ai", "agents", "coding-agents", "agentic-coding", "cursor", "claude-code", "codex", "gemini-cli", "copilot", "hooks", "guardrails",
+    "agents.md", "claude.md", "cursor-rules", "developer-experience", "devex", "safe-list", "llm"
+  ],
+  "author": "Dmitry Izgagin",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/g0007b1/agent-ready.git" },
+  "homepage": "https://github.com/g0007b1/agent-ready#readme",
+  "bugs": { "url": "https://github.com/g0007b1/agent-ready/issues" }
+}

@@ -1,0 +1,12 @@
+# docs/ — index for humans and agents
+
+<!-- agent-ready:managed:begin -->
+- `agent-safe-tasks.md` — what agents may ship alone vs. what needs a human.
+- `handoffs/` — mismatches between this repo and sibling repos / specs (template inside; generated files are gitignored).
+- `adr/` — architecture decision records (template inside). An agent that disagrees with an ADR flags it; it never silently overrides it.
+- Domain docs for fragile zones (read **before** touching the zone; update in the same PR when a convention changes):
+
+{{domainDocList}}
+
+Rule: a domain doc is a **living map**, not a changelog — code map, what not to break, current facts, backlog. No "done" history.
+<!-- agent-ready:managed:end -->

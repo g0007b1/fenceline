@@ -1,0 +1,57 @@
+# CLAUDE.md — product context for people and AI working on {{name}}
+
+<!-- agent-ready:managed:begin -->
+@AGENTS.md
+
+This file is for humans who write tasks for agents (engineers, analysts, PMs) and for AI chats that need project context.
+Operating rules for autonomous agents live in **AGENTS.md** (imported above for Claude Code); code conventions in **{{rulesPath}}/**; what agents may ship alone in **docs/agent-safe-tasks.md**.
+
+## What this project is
+
+<!-- TODO(agent-ready): 2–4 sentences. What the product does, who uses it, what "production" means here. -->
+
+## Stack
+
+{{stackLine}}
+
+## Key entities and vocabulary
+
+<!-- TODO(agent-ready): the 5–15 nouns that matter. Canonical names only, where they live in code, and terms NOT to use as synonyms. -->
+
+| Term | What it is | Where in code |
+| --- | --- | --- |
+| _(fill me)_ | | |
+
+## How to ask for a change
+
+The goal of this setup is that a request like *"remove the header on the bookings table screen"* turns into a correct pull request without a hand-holding session. That works when the request carries four things:
+
+```
+Goal: <one sentence — what changes for the user>
+Where: @path/to/file-or-folder (or the screen / endpoint / entity name from the table above)
+Acceptance criteria:
+  - Given <state>, when <action>, then <observable result>
+  - …
+Out of scope: <what must NOT change>
+```
+
+Tasks without acceptance criteria are not eligible for automatic PRs (see docs/agent-safe-tasks.md). Vague words ("improve", "clean up", "make it nicer") are a request for a proposal, not for code.
+
+## What breaks a PR here
+
+{{breaksPr}}
+
+## Fragile zones
+
+Before asking for changes in these areas, point the agent at the domain doc:
+
+{{fragileList}}
+
+## Verification commands
+
+```bash
+{{checkCommands}}
+```
+<!-- agent-ready:managed:end -->
+
+<!-- Anything below this line is yours; `agent-ready refresh` will not touch it. -->

@@ -1,0 +1,14 @@
+---
+description: Backend module conventions — boundaries, validation, migrations, domain vocabulary
+globs: ["src/**/*.ts", "src/**/*.js"]
+alwaysApply: false
+---
+# Backend modules
+
+- Modules own their domain (`src/modules/<name>/` or equivalent). Cross-module access goes through the module's public interface, never its internals.
+- Validate at the boundary (schemas / DTOs); inside the module trust the types. No untyped JSON parsing.
+- Controllers / handlers are thin: parse, call a service or command, map the result. Business logic lives in services / domain code.
+- Migrations and schema changes are human-only. If a task needs one, describe the migration (up and down) in the answer and stop.
+- Use the domain vocabulary from the module's `CONTEXT.md` if present; do not invent synonyms. Conflicts with an ADR are flagged in the answer, not silently overridden.
+- Every endpoint or service change ships with a test: unit for logic, integration for the HTTP contract.
+- Never log secrets, tokens or full request bodies with user data.

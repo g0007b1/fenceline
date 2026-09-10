@@ -1,0 +1,30 @@
+name: Bug report
+description: Something is wrong (false positive, crash, wrong detection, docs rendered badly)
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: agent-ready version and Node version
+      placeholder: 0.2.0 / node 20.11
+    validations:
+      required: true
+  - type: textarea
+    id: scan
+    attributes:
+      label: Output of `npx agent-ready scan`
+      render: text
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: 1. npx agent-ready init … 2. run … 3. see …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true

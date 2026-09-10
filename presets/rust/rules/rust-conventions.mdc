@@ -1,0 +1,13 @@
+---
+description: Rust conventions — errors, ownership, unsafe, tests
+globs: ["**/*.rs"]
+alwaysApply: false
+---
+# Rust conventions
+
+- No `unwrap()` / `expect()` outside tests and `main`; propagate with `?` and typed errors (`thiserror` in libraries, `anyhow` at the edge).
+- `unsafe` is human-only. If a task seems to need it, explain why and stop.
+- Public items get doc comments; the public API of a library crate is a contract — breaking changes are described and left to a human.
+- Prefer borrowing over cloning; a `.clone()` added to satisfy the borrow checker needs a comment saying why.
+- `clippy` with warnings denied is the gate; do not `#[allow]` a lint to make it pass without a comment.
+- Unit tests live in `#[cfg(test)]` modules next to the code; integration tests in `tests/`. No network, no real clock.

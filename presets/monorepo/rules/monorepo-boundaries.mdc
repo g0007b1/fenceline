@@ -1,0 +1,11 @@
+---
+description: Monorepo package boundaries — one package per PR, shared packages are human-reviewed
+alwaysApply: true
+---
+# Monorepo boundaries
+
+- An automatic PR touches **one** package. Cross-package changes are human-only: describe the change per package and stop.
+- Shared packages (consumed by 2+ apps) are human-only.
+- Import only through package public entry points; never reach into another package's `src/`.
+- Run the checks for the affected package **and** its dependents (`--filter`, `-r`, `./...` as the workspace supports).
+- Workspace config (build graph, task pipeline, versioning) is infrastructure — human-only.

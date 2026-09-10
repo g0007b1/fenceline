@@ -1,0 +1,12 @@
+---
+description: Conventions for a Node.js / TypeScript package — public API, exports, versioning
+globs: ["src/**/*.ts", "src/**/*.js", "lib/**/*"]
+alwaysApply: false
+---
+# Node package conventions
+
+- The public API is what `package.json` `exports` / `main` points at. Everything else is internal; do not re-export internals "for convenience".
+- A change to the public API (signature, behaviour, removed export) is a breaking change: describe it in the answer and stop — releases are human-led.
+- No new runtime dependency without saying why in the answer; prefer the standard library.
+- Errors are `Error` subclasses with a stable `code`; never throw strings.
+- Node version support is declared in `engines`; do not use APIs newer than that.
