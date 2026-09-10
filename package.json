@@ -1,6 +1,6 @@
 {
   "name": "fenceline",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Hooks that deny, not prompts that hope. One command makes any repo safe and productive for AI coding agents: parsed shell guards, a stop hook that runs your checks, layered docs, safe-lists, fragile-zone detection. Cursor, Claude Code, Codex, Gemini CLI, Copilot. Node, Python, Go, Rust.",
   "bin": { "fenceline": "bin/fenceline.js" },
   "type": "commonjs",

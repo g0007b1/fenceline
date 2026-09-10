@@ -287,6 +287,7 @@ it('generic preset picks up Makefile targets and still installs', () => {
   assert.strictEqual(run(gen, ['check', '--no-run']).status, 0);
 });
 it('CLI validates arguments', () => {
+  assert(run(gen, ['--help']).stdout.includes('Usage:')); assert(run(gen, ['-h']).stdout.includes('Usage:')); assert.strictEqual(run(gen, ['--version']).stdout.trim(), require('../package.json').version);
   assert.notStrictEqual(run(gen, ['init', '--siblings']).status, 0);
   assert.notStrictEqual(run(gen, ['init', '--preset', 'bogus']).status, 0);
   assert.notStrictEqual(run(gen, ['init', '--runtime', 'vim']).status, 0);

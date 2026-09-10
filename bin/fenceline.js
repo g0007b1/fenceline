@@ -5,7 +5,7 @@ const fs = require('fs');
 
 const HELP = `fenceline — make any repository safe and productive for AI coding agents
 
-Usage:
+Usage:  (fenceline --version · fenceline --help)
   fenceline scan      [dir] [--json]        Detect stack, checks, risk zones, fragile areas. No writes.
   fenceline init      [dir] [options]       Interactive setup (wizard in a terminal; defaults with --yes / in CI).
   fenceline refresh   [dir] [options]       Re-run with the answers you gave last time; flags override.
@@ -199,8 +199,10 @@ function runtimesCmd(root) {
 
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
+  if (cmd === '--version' || cmd === '-V' || cmd === 'version') { console.log(require('../package.json').version); return; }
+  if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') { process.stdout.write(HELP); return; }
   const args = parseArgs(rest);
-  if (!cmd || args.help || cmd === 'help') { process.stdout.write(HELP); return; }
+  if (args.help) { process.stdout.write(HELP); return; }
   const firstIsDir = args._[0] && fs.existsSync(args._[0]) && fs.statSync(args._[0]).isDirectory() && (cmd !== 'triage' || args._.length > 1) && cmd !== 'config';
   if (!['triage', 'presets', 'config', 'runtimes'].includes(cmd) && args._[0] && !firstIsDir && /[\/\\]/.test(args._[0])) { console.error(`Directory not found: ${args._[0]}`); process.exit(1); }
   const root = path.resolve(firstIsDir ? args._.shift() : process.cwd());

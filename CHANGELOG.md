@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- `fenceline --help` / `-h` / `--version` work as the first argument.
+- Windows: temp-dir detection handles 8.3 short names; CRLF-safe templates; `.gitattributes`.
+- Renamed from agent-ready (npm similarity rule) — everything is `fenceline` now.
+
 ## 0.4.0 — you choose what gets installed
 
 - **Interactive `init`** (readline, zero deps): stack preset, which runtimes (only detected ones pre-selected), strictness profile, components, read-only neighbours, base branch / prefix. `-y` or CI → defaults, no questions. `--dry-run` shows the plan.
