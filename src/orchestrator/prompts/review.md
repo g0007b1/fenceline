@@ -13,6 +13,10 @@ Work efficiently — you have a hard cap of about {{turns}} tool calls:
 - Prioritise by cost-if-wrong: invariants and "do not break" lines, protected paths, check commands, vocabulary; prose last.
 - Report the JSON summary before you run out of turns, even if some files were only skimmed (say which).
 
+## Pre-checked by code (paths and commits that do not exist — fix these first, no need to re-verify)
+
+{{prechecked}}
+
 ## Files to review
 
 {{files}}

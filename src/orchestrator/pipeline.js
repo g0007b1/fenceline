@@ -8,6 +8,7 @@ const evidenceMod = require('./evidence');
 const R = require('../render');
 const { globToRegex, slug } = require('./pipeline-utils');
 const enforce = require('./enforce');
+const verifyMod = require('./verify');
 
 const PROMPTS = path.join(__dirname, 'prompts');
 const SCHEMA = JSON.parse(fs.readFileSync(path.join(__dirname, 'schemas', 'diagnosis.json'), 'utf8'));
@@ -142,7 +143,7 @@ async function run(root, opts) {
     const partials = results.filter((r) => r.json).map((r) => r.json);
     if (!partials.length) { report.phases.diagnose = { ok: false }; throw new Error(results[0].authFail ? runner.authHint() : `diagnose produced no structured output from any agent (${results.map((r) => (r.text || r.stderr || '').slice(0, 120)).join(' | ')})`); }
     // deterministic merge first; the synthesizer only reconciles
-    diagnosis = mergeDiagnoses(partials, results[0].json ? 0 : -1);
+    diagnosis = verifyMod.dedupe(mergeDiagnoses(partials, results[0].json ? 0 : -1)).diagnosis;
     const syn = await runStructured(runner, 'synthesize', { cwd: root, schema: SCHEMA, allowedTools: ['Read', 'Grep', 'Glob'], permissionMode: 'dontAsk', maxTurns: 12, maxBudgetUsd: budget * split.synthesize, model: models.synthesize, noPersist: false, settings: NO_HOOKS, prompt: prompt('synthesize.md', { merged: JSON.stringify(trimForSynthesis(diagnosis)), evidence: `(omitted — the merged diagnosis already carries the evidence; project name: ${evidence.stack.name}, stack: ${evidence.stack.summary.join(', ')})` }) }, log);
     spent(syn);
     if (syn.json) { diagnosis = syn.json; log(`  ✓ synthesize: reconciled — $${Number(syn.costUsd || 0).toFixed(2)}`); }
@@ -157,6 +158,11 @@ async function run(root, opts) {
     report.phases.diagnose = { ok: true, areas: [] };
   }
   fs.writeFileSync(path.join(root, '.fenceline', 'diagnosis.json'), JSON.stringify(diagnosis, null, 2));
+  // deterministic clean-up before any file is written: cited paths / commits must exist; duplicates merge
+  const v = verifyMod.verify(root, diagnosis); const dd = verifyMod.dedupe(v.diagnosis); diagnosis = dd.diagnosis;
+  const dropped = v.report.demoted.length + v.report.dropped.length;
+  if (dropped || v.report.flagged.length || Object.values(dd.report).some(Boolean)) log(`  ✓ verify: ${dropped} claims demoted/dropped (evidence not found), ${v.report.flagged.length} flagged; dedupe merged ${dd.report.conventions} conventions, ${dd.report.entities} entities, ${dd.report.landmines} landmines`);
+  report.phases.verify = { ...v.report, merged: dd.report };
   diagnosis = normaliseZones(diagnosis);
   if (opts.diagnoseOnly) { report.finishedAt = new Date().toISOString(); fs.writeFileSync(path.join(root, '.fenceline', `run-${report.startedAt.replace(/[:.]/g, '-')}.json`), JSON.stringify(report, null, 2)); return { report, diagnosis, evidence }; }
   log(`  ✓ diagnosis: ${diagnosis.entities.length} entities, ${diagnosis.conventions.length} conventions, ${diagnosis.fragileZones.length} fragile zones, ${diagnosis.protectedPaths.length} protected paths, ${diagnosis.landmines.length} landmines, ${diagnosis.openQuestions.length} open questions`);
@@ -178,6 +184,8 @@ async function run(root, opts) {
   if (!composeR.ok) throw new Error(`compose failed: ${(composeR.text || '').slice(0, 300)}`);
   if (composeR.limited) log('  ! compose hit its budget/turn cap — files may be incomplete; raise --budget or use --depth quick on a smaller repo');
   const written = listWritten(root, writable).filter((f) => !/_TEMPLATE\.md$/.test(f));
+  const docFindings = verifyMod.verifyDocs(root, written);
+  if (docFindings.length) log(`  ! ${docFindings.length} files cite paths or commits that do not exist — handed to the critic`);
   const distributed = enforce.distributeRules(root, targets);
   if (distributed.length) log(`  ✓ rules: ${distributed.join(', ')}`);
   report.phases.compose = { ok: true, limited: !!composeR.limited, written, rules: distributed };
@@ -187,7 +195,7 @@ async function run(root, opts) {
   if (!opts.skipReview) {
     const reviewR = await runPhase(runner, 'review', {
       cwd: root, allowedTools: runner.toolsWrite(written), permissionMode: 'acceptEdits', maxTurns: depth.reviewTurns, maxBudgetUsd: budget * (areas.length >= 2 ? SPLIT_FANOUT : SPLIT_SINGLE).review, model: models.review, noPersist: true, settings: NO_HOOKS,
-      prompt: prompt('review.md', { files: written.map((f) => `- ${f}`).join('\n'), diagnosis: JSON.stringify(diagnosis, null, 1), turns: depth.reviewTurns }),
+      prompt: prompt('review.md', { files: written.map((f) => `- ${f}`).join('\n'), diagnosis: JSON.stringify(diagnosis, null, 1), turns: depth.reviewTurns, prechecked: docFindings.length ? docFindings.map((f) => `- ${f.file}: ${[...f.missingPaths.map((p) => 'missing path `' + p + '`'), ...f.unknownCommits.map((c) => 'unknown commit `' + c + '`')].join(', ')}`).join('\n') : '- none: every cited path and commit exists' }),
     }, log);
     spent(reviewR);
     const rj = reviewR.json || extractJson(reviewR.text);
