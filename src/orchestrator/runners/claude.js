@@ -25,7 +25,7 @@ function run(opts) {
     const args = ['-p', '--output-format', opts.includeHookEvents ? 'stream-json' : 'json'];
     if (opts.includeHookEvents) args.push('--verbose');
     // keep the agent's tool surface small: built-in tools only, no MCP servers / plugins from the user's global config
-    args.push('--tools', opts.tools || 'Read,Glob,Grep,Bash,Edit,Write', '--strict-mcp-config', '--setting-sources', opts.settingSources || 'project');
+    args.push('--tools', opts.tools !== undefined ? opts.tools : 'Read,Glob,Grep,Bash,Edit,Write', '--strict-mcp-config', '--setting-sources', opts.settingSources || 'project');
     if (opts.schema) args.push('--json-schema', JSON.stringify(opts.schema));
     if (opts.system) args.push('--system-prompt', opts.system);
     if (opts.appendSystem) args.push('--append-system-prompt', opts.appendSystem);

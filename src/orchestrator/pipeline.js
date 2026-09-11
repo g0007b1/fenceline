@@ -15,11 +15,12 @@ const prompt = (name, vars) => R.render(fs.readFileSync(path.join(PROMPTS, name)
 
 const DEPTH = {
   quick: { areas: 0, maxTurns: 50, reviewTurns: 40, composeTurns: 60, budget: 8 },
-  standard: { areas: 3, maxTurns: 70, reviewTurns: 50, composeTurns: 80, budget: 12 },
-  deep: { areas: 6, maxTurns: 100, reviewTurns: 70, composeTurns: 100, budget: 25 },
+  standard: { areas: 3, maxTurns: 60, reviewTurns: 50, composeTurns: 80, budget: 16 },
+  deep: { areas: 6, maxTurns: 80, reviewTurns: 70, composeTurns: 100, budget: 30 },
 };
-// budget split per phase (fractions of the total); synthesis only exists with fan-out
-const SPLIT = { diagnose: 0.35, synthesize: 0.10, compose: 0.30, review: 0.25 };
+// budget split per phase (fractions of the total). With fan-out the diagnosis share is spread over the agents.
+const SPLIT_SINGLE = { diagnose: 0.45, compose: 0.30, review: 0.25 };
+const SPLIT_FANOUT = { diagnose: 0.55, synthesize: 0.08, compose: 0.22, review: 0.15 };
 // Project hooks (installed by enforce) must not interfere with the pipeline's own agents:
 // the stop hook would demand a self-review from the compose agent and burn its budget.
 const NO_HOOKS = { disableAllHooks: true };
@@ -65,6 +66,19 @@ function fileSpec(diagnosis, targets, hasHooks) {
   ].join('\n');
 }
 
+// Run a phase that must end with structured output. If the agent hits its turn/budget cap before answering,
+// resume the same session once and ask for the final answer from what it has already learned.
+async function runStructured(runner, name, opts, log) {
+  const r = await runner.run({ ...opts, phase: name });
+  if (r.json || !r.sessionId || !r.limited) return r;
+  log(`  · ${name}: cap reached after ${r.turns || '?'} turns without a final answer — asking for it from what was read`);
+  const again = await runner.run({
+    ...opts, phase: `${name}-finish`, resume: r.sessionId, maxTurns: 3, maxBudgetUsd: Math.max(0.5, (opts.maxBudgetUsd || 1) * 0.3), allowedTools: [], tools: '',
+    prompt: 'You reached the tool-call cap. Do not read anything more. Produce the final structured answer NOW from what you have already learned. Anything you did not get to verify goes under openQuestions; do not invent evidence.',
+  });
+  return { ...again, costUsd: Number(r.costUsd || 0) + Number(again.costUsd || 0), turns: (r.turns || 0) + (again.turns || 0), recovered: !!again.json, limited: true };
+}
+
 async function runPhase(runner, name, opts, log) {
   log(`▸ ${name} …`);
   const started = Date.now();
@@ -100,25 +114,28 @@ async function run(root, opts) {
   let diagnosis;
   const readOnly = runner.toolsReadOnly();
   if (areas.length >= 2) {
-    log(`▸ diagnose: ${areas.length} area agents in parallel (${areas.join(', ')}) + whole-repo agent`);
-    const jobs = [null, ...areas].map((area) => runner.run({
-      phase: area ? `diagnose-${slug(area)}` : 'diagnose',
-      cwd: root, schema: SCHEMA, allowedTools: readOnly, permissionMode: 'dontAsk', maxTurns: depth.maxTurns, maxBudgetUsd: (budget * SPLIT.diagnose) / (areas.length + 1), model: opts.model, effort: opts.effort, noPersist: true, settings: NO_HOOKS,
-      prompt: prompt('diagnose.md', { evidence: evidenceMd, scopeNote: area ? `Scope: concentrate on \`${area}\` — its architecture, entities, conventions, fragile zones and landmines. Other areas are context only. Still fill project-level fields briefly.` : 'Scope: the whole repository at the level of architecture, entry points, checks, protected paths, branches, siblings and safe tasks. Other agents cover individual areas in depth.' }),
-    }));
+    const split = SPLIT_FANOUT;
+    const perAgent = (budget * split.diagnose) / (areas.length + 1);
+    log(`▸ diagnose: ${areas.length} area agents in parallel (${areas.join(', ')}) + whole-repo agent, ~$${perAgent.toFixed(2)} each`);
+    const jobs = [null, ...areas].map((area) => runStructured(runner, area ? `diagnose-${slug(area)}` : 'diagnose', {
+      cwd: root, schema: SCHEMA, allowedTools: readOnly, permissionMode: 'dontAsk', maxTurns: depth.maxTurns, maxBudgetUsd: perAgent, model: opts.model, effort: opts.effort, noPersist: false, settings: NO_HOOKS,
+      prompt: prompt('diagnose.md', { evidence: evidenceMd, turns: depth.maxTurns, scopeNote: area ? `Scope: concentrate on \`${area}\` — its architecture, entities, conventions, fragile zones and landmines. Other areas are context only. Fill project-level fields briefly.` : 'Scope: the whole repository at the level of architecture, entry points, checks, protected paths, branches, siblings and safe tasks. Other agents cover individual areas in depth — do not read every file.' }),
+    }, log));
     const results = await Promise.all(jobs);
-    results.forEach((r) => spent(r));
-    const failed = results.filter((r) => !r.ok);
-    if (failed.length === results.length) { report.phases.diagnose = { ok: false, error: failed[0].text }; throw new Error(failed[0].authFail ? runner.authHint() : `diagnose failed: ${failed[0].text.slice(0, 300)}`); }
-    const partials = results.filter((r) => r.ok && r.json).map((r, i) => `### Partial ${i + 1}\n\n\`\`\`json\n${JSON.stringify(r.json, null, 1)}\n\`\`\``).join('\n\n');
-    const syn = await runPhase(runner, 'synthesize', { cwd: root, schema: SCHEMA, allowedTools: readOnly, permissionMode: 'dontAsk', maxTurns: 30, maxBudgetUsd: budget * SPLIT.synthesize, model: opts.model, noPersist: true, settings: NO_HOOKS, prompt: prompt('synthesize.md', { partials, evidence: evidenceMd }) }, log);
+    results.forEach((r, i) => { spent(r); log(`  ${r.json ? '✓' : '✖'} ${i === 0 ? 'whole-repo' : areas[i - 1]}: ${r.json ? 'diagnosis' : 'no output'}${r.recovered ? ' (recovered after cap)' : ''} — $${Number(r.costUsd || 0).toFixed(2)}, ${r.turns || '?'} turns`); });
+    const partials = results.filter((r) => r.json).map((r) => r.json);
+    if (!partials.length) { report.phases.diagnose = { ok: false }; throw new Error(results[0].authFail ? runner.authHint() : `diagnose produced no structured output from any agent (${results.map((r) => (r.text || r.stderr || '').slice(0, 120)).join(' | ')})`); }
+    // deterministic merge first; the synthesizer only reconciles
+    diagnosis = mergeDiagnoses(partials, results[0].json ? 0 : -1);
+    const syn = await runStructured(runner, 'synthesize', { cwd: root, schema: SCHEMA, allowedTools: ['Read', 'Grep', 'Glob'], permissionMode: 'dontAsk', maxTurns: 15, maxBudgetUsd: budget * split.synthesize, model: opts.model, noPersist: false, settings: NO_HOOKS, prompt: prompt('synthesize.md', { merged: JSON.stringify(diagnosis, null, 1), evidence: evidenceMd }) }, log);
     spent(syn);
-    if (!syn.ok || !syn.json) throw new Error(`synthesize failed: ${(syn.text || '').slice(0, 300)}`);
-    diagnosis = syn.json;
-    report.phases.diagnose = { ok: true, areas, partialsOk: results.filter((r) => r.ok).length };
+    if (syn.json) { diagnosis = syn.json; log(`  ✓ synthesize: reconciled — $${Number(syn.costUsd || 0).toFixed(2)}`); }
+    else log('  · synthesize produced no output — using the deterministic merge of the area diagnoses');
+    report.phases.diagnose = { ok: true, areas, partialsOk: partials.length, synthesized: !!syn.json };
   } else {
-    const r = await runPhase(runner, 'diagnose', { cwd: root, schema: SCHEMA, allowedTools: readOnly, permissionMode: 'dontAsk', maxTurns: depth.maxTurns, maxBudgetUsd: budget * (SPLIT.diagnose + SPLIT.synthesize), model: opts.model, effort: opts.effort, noPersist: true, settings: NO_HOOKS, prompt: prompt('diagnose.md', { evidence: evidenceMd, scopeNote: 'Scope: the whole repository.' }) }, log);
+    const r = await runStructured(runner, 'diagnose', { cwd: root, schema: SCHEMA, allowedTools: readOnly, permissionMode: 'dontAsk', maxTurns: depth.maxTurns, maxBudgetUsd: budget * SPLIT_SINGLE.diagnose, model: opts.model, effort: opts.effort, noPersist: false, settings: NO_HOOKS, prompt: prompt('diagnose.md', { evidence: evidenceMd, turns: depth.maxTurns, scopeNote: 'Scope: the whole repository.' }) }, log);
     spent(r);
+    log(`  ✓ diagnose: $${Number(r.costUsd || 0).toFixed(2)}, ${r.turns || '?'} turns${r.recovered ? ' (recovered after cap)' : ''}`);
     if (!r.ok || !r.json) throw new Error(r.authFail ? runner.authHint() : `diagnose produced no structured output: ${(r.text || '').slice(0, 300)}`);
     diagnosis = r.json;
     report.phases.diagnose = { ok: true, areas: [] };
@@ -137,7 +154,7 @@ async function run(root, opts) {
   // 3. compose — the agent writes the environment
   const writable = ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'docs/**'];
   const composeR = await runPhase(runner, 'compose', {
-    cwd: root, allowedTools: runner.toolsWrite(writable), permissionMode: 'acceptEdits', maxTurns: depth.composeTurns, maxBudgetUsd: budget * SPLIT.compose, model: opts.model, noPersist: true, settings: NO_HOOKS,
+    cwd: root, allowedTools: runner.toolsWrite(writable), permissionMode: 'acceptEdits', maxTurns: depth.composeTurns, maxBudgetUsd: budget * (areas.length >= 2 ? SPLIT_FANOUT : SPLIT_SINGLE).compose, model: opts.model, noPersist: true, settings: NO_HOOKS,
     prompt: prompt('compose.md', { fileSpec: fileSpec(diagnosis, targets, hasHooks), ruleFormats: RULE_FORMAT, diagnosis: JSON.stringify(diagnosis, null, 1), evidence: evidenceMd }),
   }, log);
   spent(composeR);
@@ -152,7 +169,7 @@ async function run(root, opts) {
   // 4. review — a fresh critic
   if (!opts.skipReview) {
     const reviewR = await runPhase(runner, 'review', {
-      cwd: root, allowedTools: runner.toolsWrite(written), permissionMode: 'acceptEdits', maxTurns: depth.reviewTurns, maxBudgetUsd: budget * SPLIT.review, model: opts.model, noPersist: true, settings: NO_HOOKS,
+      cwd: root, allowedTools: runner.toolsWrite(written), permissionMode: 'acceptEdits', maxTurns: depth.reviewTurns, maxBudgetUsd: budget * (areas.length >= 2 ? SPLIT_FANOUT : SPLIT_SINGLE).review, model: opts.model, noPersist: true, settings: NO_HOOKS,
       prompt: prompt('review.md', { files: written.map((f) => `- ${f}`).join('\n'), diagnosis: JSON.stringify(diagnosis, null, 1), turns: depth.reviewTurns }),
     }, log);
     spent(reviewR);
@@ -176,6 +193,23 @@ async function run(root, opts) {
   fs.writeFileSync(path.join(root, '.fenceline', `run-${report.startedAt.replace(/[:.]/g, '-')}.json`), JSON.stringify(report, null, 2));
   return { report, diagnosis, evidence };
 }
+
+// Union of partial diagnoses. Project-level fields come from the whole-repo agent (index `primary`) when it
+// answered, else from the first partial; list fields are concatenated and de-duplicated by their natural key.
+function mergeDiagnoses(partials, primary) {
+  const base = partials[primary >= 0 ? primary : 0];
+  const uniq = (key) => { const seen = new Set(); return partials.flatMap((p) => _uniqPath(p, key)).filter((x) => { const k = JSON.stringify(x.term || x.rule || x.dir || x.glob || x.id || x.what || x.command || x).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }); };
+  const strs = (key) => [...new Set(partials.flatMap((p) => p[key] || []))];
+  return {
+    project: base.project, architecture: { ...base.architecture, layers: uniq('architecture.layers') },
+    entities: uniq('entities'), conventions: uniq('conventions'), checks: uniq('checks'), fragileZones: uniq('fragileZones'), riskAreas: uniq('riskAreas'),
+    protectedPaths: uniq('protectedPaths'), protectedBranches: strs('protectedBranches'), siblingRepos: strs('siblingRepos'),
+    safeTasks: { auto: [...new Set(partials.flatMap((p) => (p.safeTasks || {}).auto || []))], human: [...new Set(partials.flatMap((p) => (p.safeTasks || {}).human || []))] },
+    landmines: uniq('landmines'), undocumented: strs('undocumented'), openQuestions: strs('openQuestions'),
+  };
+}
+// nested key support for uniq('architecture.layers')
+const _uniqPath = (p, key) => key.split('.').reduce((o, k) => (o == null ? undefined : o[k]), p) || [];
 
 function extractJson(s) {
   const m = String(s || '').match(/```json\s*([\s\S]*?)```/) || String(s || '').match(/(\{[\s\S]*\})\s*$/);
