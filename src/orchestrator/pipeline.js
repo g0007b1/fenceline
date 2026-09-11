@@ -37,17 +37,28 @@ alwaysApply: false                        # true for always-on rules
 \`\`\`
 Start CLAUDE.md with the line \`@AGENTS.md\` so Claude Code imports the operating manual.`;
 
-function areasFrom(evidence, n) {
+// Areas for parallel diagnosis, by meaning rather than by size: fragile zones first (that is where the
+// invariants are), then module boundaries (feature / module / package directories), ranked by churn and size.
+// Small leftovers stay with the whole-repo agent. Returns at most n directories (with trailing slash).
+const MODULE_ROOTS = /^(src\/(features|modules|domains|packages|apps|services|components|pages|app|lib|server|api|core)|packages|apps|services|internal|pkg|cmd|lib|app)\/[^/]+\/$/;
+const NOISE = /^(node_modules|dist|build|out|docs|\.github|assets|public|vendor|coverage|test|tests|__tests__|e2e|scripts)\//;
+function areasFrom(evidence, n, minFiles = 4) {
   if (!n) return [];
-  const dirs = new Map();
-  for (const line of evidence.files.tree) {
-    const m = line.match(/^([^/]+\/[^/]+\/)? ?(.*)\((\d+) files\)$/);
-    const [dir, count] = [line.split(' (')[0], parseInt(line.match(/\((\d+) files\)/)[1], 10)];
-    if (dir.split('/').filter(Boolean).length === 2 && count >= 5) dirs.set(dir, count);
+  const count = new Map();
+  for (const line of evidence.files.tree) { const m = line.match(/^(.*) \((\d+) files\)$/); if (m) count.set(m[1], parseInt(m[2], 10)); }
+  const churn = new Map();
+  for (const l of evidence.git.churnTop) { const m = l.trim().match(/^(\d+)\s+(.+)$/); if (!m) continue; for (const [dir] of count) if (m[2].startsWith(dir)) churn.set(dir, (churn.get(dir) || 0) + parseInt(m[1], 10)); }
+  const fragile = new Set(evidence.fragile.zones.map((z) => z.dir.replace(/\/$/, '') + '/'));
+  const candidates = [...count.keys()].filter((d) => !NOISE.test(d) && count.get(d) >= minFiles && (fragile.has(d) || MODULE_ROOTS.test(d)));
+  // prefer the deepest meaningful directory: drop a parent when a child candidate exists
+  const leaves = candidates.filter((d) => !candidates.some((o) => o !== d && o.startsWith(d)));
+  const score = (d) => (fragile.has(d) ? 1000 : 0) + (churn.get(d) || 0) * 3 + count.get(d);
+  const chosen = leaves.sort((a, b) => score(b) - score(a)).slice(0, n);
+  // if there are fewer meaningful leaves than slots, fall back to the largest second-level directories
+  if (chosen.length < 2) {
+    const big = [...count.keys()].filter((d) => !NOISE.test(d) && d.split('/').filter(Boolean).length === 2 && count.get(d) >= minFiles && !chosen.includes(d)).sort((a, b) => score(b) - score(a));
+    for (const d of big) { if (chosen.length >= n) break; chosen.push(d); }
   }
-  const ranked = [...dirs.entries()].filter(([d]) => !/^(node_modules|dist|build|docs|\.github|assets|public|vendor|coverage)\//.test(d)).sort((a, b) => b[1] - a[1]);
-  const fragile = new Set(evidence.fragile.zones.map((z) => z.dir + '/'));
-  const chosen = [...ranked.filter(([d]) => fragile.has(d)), ...ranked.filter(([d]) => !fragile.has(d))].slice(0, n).map(([d]) => d);
   return chosen;
 }
 
@@ -98,10 +109,12 @@ async function run(root, opts) {
   if (!det.installed) throw new Error(`${runner.label} CLI not found on PATH (${runner.bin || runner.id}). Install it or pick another runtime.`);
   const depth = DEPTH[opts.depth || 'standard'];
   const budget = opts.budgetUsd || depth.budget;
+  // Reading code does not need the strongest model; writing and criticising do.
+  const models = { area: opts.areaModel || 'sonnet', whole: opts.areaModel || 'sonnet', synthesize: opts.areaModel || 'sonnet', compose: opts.model, review: opts.model };
   const auth = runner.authInfo ? runner.authInfo() : { billing: 'unknown', label: '' };
   if (auth.loggedIn === false) throw new Error(runner.authHint());
   log(`  auth: ${auth.label}`);
-  const report = { root, runtime: runner.id, depth: opts.depth || 'standard', startedAt: new Date().toISOString(), phases: {}, costUsd: 0, billing: auth.billing, billingLabel: auth.label };
+  const report = { root, runtime: runner.id, depth: opts.depth || 'standard', startedAt: new Date().toISOString(), phases: {}, costUsd: 0, billing: auth.billing, billingLabel: auth.label, models };
   const spent = (r) => { report.costUsd += Number(r.costUsd || 0); };
 
   // 0. evidence
@@ -119,10 +132,10 @@ async function run(root, opts) {
   if (areas.length >= 2) {
     const split = SPLIT_FANOUT;
     const perAgent = (budget * split.diagnose) / (areas.length + 1);
-    log(`▸ diagnose: ${areas.length} area agents in parallel (${areas.join(', ')}) + whole-repo agent, ~$${perAgent.toFixed(2)} each`);
+    log(`▸ diagnose: ${areas.length} area agents in parallel (${areas.join(', ')}) + whole-repo agent, ~$${perAgent.toFixed(2)} each, model ${models.area || 'default'}`);
     const jobs = [null, ...areas].map((area) => runStructured(runner, area ? `diagnose-${slug(area)}` : 'diagnose', {
-      cwd: root, schema: SCHEMA, allowedTools: readOnly, permissionMode: 'dontAsk', maxTurns: depth.maxTurns, maxBudgetUsd: perAgent, model: opts.model, effort: opts.effort, noPersist: false, settings: NO_HOOKS,
-      prompt: prompt('diagnose.md', { evidence: evidenceMd, turns: depth.maxTurns, scopeNote: area ? `Scope: concentrate on \`${area}\` — its architecture, entities, conventions, fragile zones and landmines. Other areas are context only. Fill project-level fields briefly.` : 'Scope: the whole repository at the level of architecture, entry points, checks, protected paths, branches, siblings and safe tasks. Other agents cover individual areas in depth — do not read every file.' }),
+      cwd: root, schema: SCHEMA, allowedTools: readOnly, permissionMode: 'dontAsk', maxTurns: depth.maxTurns, maxBudgetUsd: perAgent, model: area ? models.area : models.whole, effort: opts.effort, noPersist: false, settings: NO_HOOKS,
+      prompt: prompt('diagnose.md', { evidence: area ? evidenceMod.toMarkdown(evidenceMod.focus(evidence, area)) : evidenceMd, turns: depth.maxTurns, scopeNote: area ? `Scope: concentrate on \`${area}\` — its architecture, entities, conventions, fragile zones and landmines. Other areas are context only. Fill project-level fields briefly.` : `Scope: the whole repository at the level of architecture, entry points, checks, protected paths, branches, siblings, safe tasks, and any code outside these areas, which other agents cover in depth: ${areas.join(', ')}. Do not read files inside those areas.` }),
     }, log));
     const results = await Promise.all(jobs);
     results.forEach((r, i) => { spent(r); log(`  ${r.json ? '✓' : '✖'} ${i === 0 ? 'whole-repo' : areas[i - 1]}: ${r.json ? 'diagnosis' : 'no output'}${r.recovered ? ' (recovered after cap)' : ''} — $${Number(r.costUsd || 0).toFixed(2)}, ${r.turns || '?'} turns`); });
@@ -130,13 +143,13 @@ async function run(root, opts) {
     if (!partials.length) { report.phases.diagnose = { ok: false }; throw new Error(results[0].authFail ? runner.authHint() : `diagnose produced no structured output from any agent (${results.map((r) => (r.text || r.stderr || '').slice(0, 120)).join(' | ')})`); }
     // deterministic merge first; the synthesizer only reconciles
     diagnosis = mergeDiagnoses(partials, results[0].json ? 0 : -1);
-    const syn = await runStructured(runner, 'synthesize', { cwd: root, schema: SCHEMA, allowedTools: ['Read', 'Grep', 'Glob'], permissionMode: 'dontAsk', maxTurns: 12, maxBudgetUsd: budget * split.synthesize, model: opts.model, noPersist: false, settings: NO_HOOKS, prompt: prompt('synthesize.md', { merged: JSON.stringify(trimForSynthesis(diagnosis)), evidence: `(omitted — the merged diagnosis already carries the evidence; project name: ${evidence.stack.name}, stack: ${evidence.stack.summary.join(', ')})` }) }, log);
+    const syn = await runStructured(runner, 'synthesize', { cwd: root, schema: SCHEMA, allowedTools: ['Read', 'Grep', 'Glob'], permissionMode: 'dontAsk', maxTurns: 12, maxBudgetUsd: budget * split.synthesize, model: models.synthesize, noPersist: false, settings: NO_HOOKS, prompt: prompt('synthesize.md', { merged: JSON.stringify(trimForSynthesis(diagnosis)), evidence: `(omitted — the merged diagnosis already carries the evidence; project name: ${evidence.stack.name}, stack: ${evidence.stack.summary.join(', ')})` }) }, log);
     spent(syn);
     if (syn.json) { diagnosis = syn.json; log(`  ✓ synthesize: reconciled — $${Number(syn.costUsd || 0).toFixed(2)}`); }
     else log('  · synthesize produced no output — using the deterministic merge of the area diagnoses');
     report.phases.diagnose = { ok: true, areas, partialsOk: partials.length, synthesized: !!syn.json };
   } else {
-    const r = await runStructured(runner, 'diagnose', { cwd: root, schema: SCHEMA, allowedTools: readOnly, permissionMode: 'dontAsk', maxTurns: depth.maxTurns, maxBudgetUsd: budget * SPLIT_SINGLE.diagnose, model: opts.model, effort: opts.effort, noPersist: false, settings: NO_HOOKS, prompt: prompt('diagnose.md', { evidence: evidenceMd, turns: depth.maxTurns, scopeNote: 'Scope: the whole repository.' }) }, log);
+    const r = await runStructured(runner, 'diagnose', { cwd: root, schema: SCHEMA, allowedTools: readOnly, permissionMode: 'dontAsk', maxTurns: depth.maxTurns, maxBudgetUsd: budget * SPLIT_SINGLE.diagnose, model: models.whole, effort: opts.effort, noPersist: false, settings: NO_HOOKS, prompt: prompt('diagnose.md', { evidence: evidenceMd, turns: depth.maxTurns, scopeNote: 'Scope: the whole repository.' }) }, log);
     spent(r);
     log(`  ✓ diagnose: $${Number(r.costUsd || 0).toFixed(2)}, ${r.turns || '?'} turns${r.recovered ? ' (recovered after cap)' : ''}`);
     if (!r.ok || !r.json) throw new Error(r.authFail ? runner.authHint() : `diagnose produced no structured output: ${(r.text || '').slice(0, 300)}`);
@@ -158,7 +171,7 @@ async function run(root, opts) {
   // 3. compose — the agent writes the environment
   const writable = ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'docs/**'];
   const composeR = await runPhase(runner, 'compose', {
-    cwd: root, allowedTools: runner.toolsWrite(writable), permissionMode: 'acceptEdits', maxTurns: depth.composeTurns, maxBudgetUsd: budget * (areas.length >= 2 ? SPLIT_FANOUT : SPLIT_SINGLE).compose, model: opts.model, noPersist: true, settings: NO_HOOKS,
+    cwd: root, allowedTools: runner.toolsWrite(writable), permissionMode: 'acceptEdits', maxTurns: depth.composeTurns, maxBudgetUsd: budget * (areas.length >= 2 ? SPLIT_FANOUT : SPLIT_SINGLE).compose, model: models.compose, noPersist: true, settings: NO_HOOKS,
     prompt: prompt('compose.md', { fileSpec: fileSpec(diagnosis, targets, hasHooks), ruleFormats: RULE_FORMAT, diagnosis: JSON.stringify(diagnosis, null, 1), evidence: evidenceMd }),
   }, log);
   spent(composeR);
@@ -173,7 +186,7 @@ async function run(root, opts) {
   // 4. review — a fresh critic
   if (!opts.skipReview) {
     const reviewR = await runPhase(runner, 'review', {
-      cwd: root, allowedTools: runner.toolsWrite(written), permissionMode: 'acceptEdits', maxTurns: depth.reviewTurns, maxBudgetUsd: budget * (areas.length >= 2 ? SPLIT_FANOUT : SPLIT_SINGLE).review, model: opts.model, noPersist: true, settings: NO_HOOKS,
+      cwd: root, allowedTools: runner.toolsWrite(written), permissionMode: 'acceptEdits', maxTurns: depth.reviewTurns, maxBudgetUsd: budget * (areas.length >= 2 ? SPLIT_FANOUT : SPLIT_SINGLE).review, model: models.review, noPersist: true, settings: NO_HOOKS,
       prompt: prompt('review.md', { files: written.map((f) => `- ${f}`).join('\n'), diagnosis: JSON.stringify(diagnosis, null, 1), turns: depth.reviewTurns }),
     }, log);
     spent(reviewR);

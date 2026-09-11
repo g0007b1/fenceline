@@ -83,4 +83,22 @@ function write(root, evidence) {
   return { json: '.fenceline/evidence.json', md: '.fenceline/evidence.md' };
 }
 
-module.exports = { build, toMarkdown, write };
+// A slimmer evidence pack for an area agent: its subtree in full, the rest of the tree at depth 1,
+// churn and commits filtered to the area, docs trimmed. Roughly a third of the full pack.
+function focus(e, area) {
+  const under = (p) => p.startsWith(area);
+  const tree = e.files.tree.filter((line) => { const dir = line.split(' (')[0]; return under(dir) || dir.split('/').filter(Boolean).length === 1; });
+  const churnTop = e.git.churnTop.filter((l) => under(l.trim().replace(/^\d+\s+/, '')));
+  const recentCommits = e.git.recentCommits.slice(0, 60);
+  return {
+    ...e, focusArea: area,
+    files: { ...e.files, tree },
+    git: { ...e.git, churnTop, recentCommits },
+    risks: e.risks.filter((r) => r.paths.some(under) || r.deps.length),
+    fragile: { ...e.fragile, zones: e.fragile.zones.filter((z) => under(z.dir + '/') || area.startsWith(z.dir + '/')) },
+    existingDocs: e.existingDocs.map((d) => ({ file: d.file, content: (d.content || '').slice(0, 2000) })),
+    ci: e.ci.slice(0, 1),
+  };
+}
+
+module.exports = { build, toMarkdown, write, focus };

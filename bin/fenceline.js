@@ -26,7 +26,8 @@ Options for init / refresh:
   --depth <quick|standard|deep> How much the agents read: quick = one agent; standard = 3 area agents + synthesis;
                                 deep = 6 area agents. Also sets turn and budget caps.
   --budget <usd>                Hard cap on API spend for the whole run (default per depth: 3 / 8 / 20).
-  --model <name>                Model for the agent runs (runtime alias, e.g. sonnet / opus).
+  --model <name>                Model for compose and review (runtime alias, e.g. opus). Default: the CLI's default.
+  --area-model <name>           Model for the reading-heavy diagnosis agents and synthesis (default: sonnet).
   --skip-review / --skip-prove  Skip the critic pass / the canary proof.
   -y, --yes                     No questions: first installed agent, standard depth, detected target runtimes
   -i, --interactive             Force the wizard (also for refresh)
@@ -59,7 +60,7 @@ Examples:
   npx fenceline config set strictness.rmRecursive deny
 `;
 
-const VALUE_FLAGS = new Set(['--preset', '--runtime', '--to', '--siblings', '--base-branch', '--branch-prefix', '--profile', '--only', '--skip', '--check', '--protected-branches', '--agent', '--depth', '--budget', '--model']);
+const VALUE_FLAGS = new Set(['--preset', '--runtime', '--to', '--siblings', '--base-branch', '--branch-prefix', '--profile', '--only', '--skip', '--check', '--protected-branches', '--agent', '--depth', '--budget', '--model', '--area-model']);
 function parseArgs(argv) {
   const args = { _: [], runtimes: [], checks: [] };
   const list = (v) => v.split(',').map((s) => s.trim()).filter(Boolean);
@@ -83,6 +84,7 @@ function parseArgs(argv) {
     else if (a === '--depth') args.depth = argv[++i];
     else if (a === '--budget') args.budget = parseFloat(argv[++i]);
     else if (a === '--model') args.model = argv[++i];
+    else if (a === '--area-model') args.areaModel = argv[++i];
     else if (a === '--skip-review') args.skipReview = true;
     else if (a === '--skip-prove') args.skipProve = true;
     else if (a === '--profile') args.profile = argv[++i];
@@ -239,7 +241,7 @@ async function orchestrate(root, cmd, opts) {
   let result;
   try {
     result = await pipeline.run(root, {
-      runtime: opts.agent, targets: opts.runtimes && opts.runtimes.length ? opts.runtimes : undefined, depth: opts.depth, budgetUsd: opts.budget, model: opts.model,
+      runtime: opts.agent, targets: opts.runtimes && opts.runtimes.length ? opts.runtimes : undefined, depth: opts.depth, budgetUsd: opts.budget, model: opts.model, areaModel: opts.areaModel,
       siblings: opts.siblings, protectedBranches: opts.protectedBranches, profile: opts.profile, components: opts.components,
       skipReview: !!opts.skipReview, skipProve: !!opts.skipProve, diagnoseOnly: !!opts.diagnoseOnly, log,
     });
