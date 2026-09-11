@@ -22,13 +22,27 @@ function loadConfig(root) {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
 
-function runChecks(root, checks, timeoutMs) {
+const { errorLines } = require('../../hooks/lib/state');
+function runChecks(root, checks, timeoutMs, baseline) {
   return checks.map((c) => {
     const started = Date.now();
-    const r = spawnSync(c.command, { cwd: root, shell: true, encoding: 'utf8', timeout: timeoutMs || 180000, env: { ...process.env, CI: '1', FORCE_COLOR: '0' } });
+    const r = spawnSync(c.command, { cwd: root, shell: true, encoding: 'utf8', timeout: timeoutMs || 180000, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, CI: '1', FORCE_COLOR: '0' } });
     const out = `${r.stdout || ''}${r.stderr || ''}`.trim();
-    return { id: c.id, command: c.command, passed: r.status === 0, ms: Date.now() - started, tail: out.split('\n').slice(-12).join('\n') };
+    const errs = errorLines(out);
+    const base = baseline && baseline.checks[c.id];
+    const newErrors = base && base.failing ? errs.filter((l) => !base.errorLines.includes(l)) : errs;
+    const preExisting = !!(base && base.failing && r.status !== 0 && !newErrors.length);
+    return { id: c.id, command: c.command, passed: r.status === 0 || preExisting, exit: r.status, preExisting, newErrors: newErrors.slice(0, 20), errorLines: errs, ms: Date.now() - started, tail: out.split('\n').slice(-12).join('\n') };
   });
+}
+// Run the checks on the untouched base so pre-existing failures are known before the agent starts.
+function writeBaseline(root, checks, timeoutMs) {
+  const results = runChecks(root, checks, timeoutMs, null);
+  const b = { at: new Date().toISOString(), checks: {} };
+  for (const r of results) b.checks[r.id] = { failing: r.exit !== 0, errorLines: r.errorLines.slice(0, 200) };
+  fs.mkdirSync(path.join(root, '.fenceline', 'state'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.fenceline', 'state', 'baseline.json'), JSON.stringify(b, null, 2));
+  return { results, baseline: b };
 }
 
 // Facts from the hook event stream: how often the guardrails intervened.
@@ -49,7 +63,7 @@ function prBody(rep) {
   const L = [];
   L.push(`## Task`, '', rep.task, '', `## Summary`, '', rep.result.summary || '_(no summary)_', '');
   L.push(`## How to test`, '', ...(rep.result.howToTest || []).map((s, i) => `${i + 1}. ${s}`), '');
-  L.push(`## Checks (re-run by fenceline after the agent finished)`, '', ...rep.checks.map((c) => `- ${c.passed ? '✅' : '❌'} \`${c.command}\`${c.passed ? '' : ' — see PR comments / run locally'}`), '');
+  L.push(`## Checks (re-run by fenceline after the agent finished)`, '', ...rep.checks.map((c) => `- ${c.passed ? '✅' : '❌'} \`${c.command}\`${c.preExisting ? ' — already failing on the base branch, no new errors' : c.passed ? '' : ` — ${(c.newErrors || []).length} new error line(s)`}`), '');
   if (rep.result.blockers && rep.result.blockers.length) L.push(`## Blockers`, '', ...rep.result.blockers.map((b) => `- ${b}`), '');
   if (rep.result.openQuestions && rep.result.openQuestions.length) L.push(`## Open questions`, '', ...rep.result.openQuestions.map((q) => `- ${q}`), '');
   L.push(`## Guardrails`, '', `- triage: **${rep.triage.verdict}** (${rep.triage.reasons.slice(0, 3).join('; ')})`, `- protected-path writes denied by hooks: ${rep.hooks.denied.length}${rep.hooks.denied.length ? ' — ' + rep.hooks.denied.slice(0, 3).join('; ') : ''}`, `- times the stop hook sent the agent back for checks / review: ${rep.hooks.stopBlocks}`, `- agent: ${rep.agent}${rep.model ? ' (' + rep.model + ')' : ''}, ${rep.turns || '?'} turns, ≈ $${(rep.costUsd || 0).toFixed(2)}${rep.limited ? ', **cap reached**' : ''}`, '');
@@ -89,15 +103,23 @@ async function run(root, runner, text, opts = {}) {
   try {
     // 3. the agent works with the hooks live (no disableAllHooks here — this is the real environment)
     const checks = (cfg.checks || []);
-    const prompt = R.render(fs.readFileSync(path.join(__dirname, 'prompts', 'task.md'), 'utf8'), {
+    const prompt = () => R.render(fs.readFileSync(path.join(__dirname, 'prompts', 'task.md'), 'utf8'), {
+      baselineNote: rep.baseline && rep.baseline.some((b) => !b.passed) ? ` Note: ${rep.baseline.filter((b) => !b.passed).map((b) => b.id).join(', ')} already fail on the base branch before your change; those pre-existing errors are not yours to fix (they may live in protected paths) — only new errors count.` : '',
       task: text, branch, base: rep.base,
       checks: checks.length ? checks.map((c) => '`' + c.command + '`').join(', ') : 'none configured',
       docsHint: rep.triage.domainDocs.length ? ` (${rep.triage.domainDocs.filter((d) => fs.existsSync(path.join(root, d))).join(', ') || 'docs/README.md'})` : ' (see docs/README.md)',
     });
+    // baseline: which checks already fail here? Those are reported, not blamed on the agent, and the stop hook knows too.
+    let baseline = null;
+    if (checks.length && !opts.skipChecks) {
+      const b = writeBaseline(root, checks, cfg.checkTimeoutMs); baseline = b.baseline; rep.baseline = b.results.map((r) => ({ id: r.id, passed: r.exit === 0, errors: r.errorLines.length }));
+      const failing = b.results.filter((r) => r.exit !== 0);
+      log(failing.length ? `  · baseline: ${failing.map((r) => `${r.command} already fails (${r.errorLines.length} error lines) — only new errors will count`).join('; ')}` : `  ✓ baseline: ${checks.map((c) => c.command).join(', ')} pass on ${rep.base}`);
+    }
     log(`▸ agent: ${runner.label} working with hooks live (max ${opts.maxTurns || 80} turns, $${opts.budget || 6} cap) …`);
     const schema = JSON.parse(fs.readFileSync(path.join(__dirname, 'schemas', 'task.json'), 'utf8'));
     const r = await runner.run({
-      phase: 'task', cwd: root, prompt, schema, permissionMode: 'acceptEdits', includeHookEvents: true, model: opts.model, effort: opts.effort,
+      phase: 'task', cwd: root, prompt: prompt(), schema, permissionMode: 'acceptEdits', includeHookEvents: true, model: opts.model, effort: opts.effort,
       maxTurns: opts.maxTurns || 80, maxBudgetUsd: opts.budget || 6, noPersist: false,
       allowedTools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash'], disallowedTools: ['Bash(git commit:*)', 'Bash(git push:*)', 'Bash(git checkout:*)', 'Bash(git switch:*)', 'Bash(git branch:*)'],
       timeoutMs: opts.timeoutMs || 45 * 60 * 1000,
@@ -116,14 +138,14 @@ async function run(root, runner, text, opts = {}) {
     log(`  changed: ${changed.slice(0, 6).join(', ')}${changed.length > 6 ? ` +${changed.length - 6}` : ''}`);
 
     // 5. checks, re-run by code (the agent's word is not the gate)
-    if (checks.length && !opts.skipChecks) { rep.checks = runChecks(root, checks, cfg.checkTimeoutMs); for (const c of rep.checks) log(`  ${c.passed ? '✓' : '✖'} ${c.command} (${(c.ms / 1000).toFixed(0)}s)`); }
+    if (checks.length && !opts.skipChecks) { rep.checks = runChecks(root, checks, cfg.checkTimeoutMs, baseline).map((c) => ({ id: c.id, command: c.command, passed: c.passed, preExisting: c.preExisting, newErrors: c.newErrors, ms: c.ms, tail: c.tail })); for (const c of rep.checks) log(`  ${c.passed ? '✓' : '✖'} ${c.command} (${(c.ms / 1000).toFixed(0)}s)${c.preExisting ? ' — fails as on the base branch, no new errors' : c.newErrors.length ? ` — ${c.newErrors.length} new error line(s)` : ''}`); }
     const green = rep.checks.every((c) => c.passed);
 
     // 6. commit (tracked + new files; never .fenceline runtime state)
     sh('git add -A', root);
     tryS('git reset -q -- .fenceline/state .fenceline/logs .fenceline/audit.log', root);
     const title = `${green ? '' : 'WIP: '}${text.length > 60 ? text.slice(0, 57) + '…' : text}`;
-    const msg = `${title}\n\n${(rep.result.summary || '').trim()}\n\nAgent: ${runner.label}${opts.model ? ' / ' + opts.model : ''}; triage: ${rep.triage.verdict}; checks: ${rep.checks.length ? rep.checks.map((c) => `${c.id}=${c.passed ? 'pass' : 'FAIL'}`).join(', ') : 'none'}\nCo-Authored-By: fenceline task <noreply@fenceline.dev>`;
+    const msg = `${title}\n\n${(rep.result.summary || '').trim()}\n\nAgent: ${runner.label}${opts.model ? ' / ' + opts.model : ''}; triage: ${rep.triage.verdict}; checks: ${rep.checks.length ? rep.checks.map((c) => `${c.id}=${c.preExisting ? 'pre-existing-failure' : c.passed ? 'pass' : 'FAIL'}`).join(', ') : 'none'}\nCo-Authored-By: fenceline task <noreply@fenceline.dev>`;
     fs.writeFileSync(path.join(root, '.fenceline', 'task-commit-msg.txt'), msg);
     sh('git commit -q -F .fenceline/task-commit-msg.txt', root);
     fs.unlinkSync(path.join(root, '.fenceline', 'task-commit-msg.txt'));
@@ -146,6 +168,7 @@ async function run(root, runner, text, opts = {}) {
     } else if (opts.pr !== false) log(`  · no draft PR: ${!remote ? 'no origin remote' : !hasGh ? 'gh not installed' : 'fake runner'} — branch ${branch} is committed locally`);
     rep.ok = green && !(rep.result.blockers || []).length;
   } finally {
+    try { fs.unlinkSync(path.join(root, '.fenceline', 'state', 'baseline.json')); } catch { /* none */ }
     if (!opts.stay) restore();
     rep.finishedAt = new Date().toISOString();
     try { const dir = path.join(root, '.fenceline', 'tasks'); fs.mkdirSync(dir, { recursive: true }); rep.prBody = rep.result ? prBody(rep) : null; fs.writeFileSync(path.join(dir, `${slugify(text)}-${Date.now()}.json`), JSON.stringify(rep, null, 2)); } catch { /* best effort */ }

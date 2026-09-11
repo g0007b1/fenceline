@@ -43,4 +43,12 @@ function loadConfig(root) {
   }
 }
 
-module.exports = { load, save, reset, fresh, gc, loadConfig, statePath };
+// Baseline written by `fenceline task` before the agent starts: which checks already failed on the base branch and
+// with which error lines. A check that fails only with those same lines is not the agent's problem.
+function baseline(root) {
+  try { const b = JSON.parse(fs.readFileSync(path.join(root, '.fenceline', 'state', 'baseline.json'), 'utf8')); return b && b.checks ? b : null; } catch { return null; }
+}
+function errorLines(out) {
+  return [...new Set(String(out || '').split('\n').map((l) => l.replace(/\x1b\[[0-9;]*m/g, '').trim()).filter((l) => /\berror\b|\bfail(ed|ure)?\b|✖|✗|\bTS\d{4}\b/i.test(l) && !/^\d+ (error|problem)s?/i.test(l)))];
+}
+module.exports = { load, save, reset, fresh, gc, loadConfig, statePath, baseline, errorLines };

@@ -27,6 +27,7 @@ if (state.stopAttempts >= max) { S.reset(root, session); P.done(); }
 const codeEdited = state.editedFiles.some((f) => codeFileRegExp(cfg).test(f));
 const MAX_OUT = 3500;
 const failures = [];
+const baseline = S.baseline(root);
 if (codeEdited) {
   for (const c of cfg.checks || []) {
     const mode = cfg.runChecksOnStop || 'missing';
@@ -35,7 +36,14 @@ if (codeEdited) {
     if (mode === 'never') { if (state.checks[c.id] !== 'green') failures.push({ c, out: '(not run since the last edit)' }); continue; }
     const r = spawnSync(c.command, { cwd: root, shell: true, encoding: 'utf8', timeout: cfg.checkTimeoutMs || 180000, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, CI: '1', FORCE_COLOR: '0' } });
     if (r.status === 0) { state.checks[c.id] = 'green'; continue; }
-    const out = `${r.stdout || ''}${r.stderr || ''}`.trim();
+    let out = `${r.stdout || ''}${r.stderr || ''}`.trim();
+    // failing exactly as it did before the agent touched anything (fenceline task baseline) → not this agent's problem
+    const base = baseline && baseline.checks[c.id];
+    if (base && base.failing) {
+      const fresh = S.errorLines(out).filter((l) => !base.errorLines.includes(l));
+      if (!fresh.length) { state.checks[c.id] = 'green'; continue; }
+      out = `(new errors since the baseline — the pre-existing ${base.errorLines.length} are not yours to fix)\n${fresh.join('\n')}`;
+    }
     failures.push({ c, out: (out.length > MAX_OUT ? out.slice(-MAX_OUT) + '\n…(truncated)' : out) || `(exit ${r.status === null ? 'timeout' : r.status})` });
     state.checks[c.id] = 'red';
   }

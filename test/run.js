@@ -110,6 +110,24 @@ it('guard-shell: git add -A / commit -a with an untracked secret', () => {
   fs.rmSync(path.join(app, 'secrets'), { recursive: true });
   assert.strictEqual(S(app, 'git add -A'), 'allow');
 });
+it('stop-hook: a check that fails exactly as on the baseline is not blamed on the agent; new errors still block', () => {
+  const cfgPath = path.join(app, '.fenceline', 'config.json'); const saved = fs.readFileSync(cfgPath, 'utf8');
+  const cfg = JSON.parse(saved); cfg.checks = [{ id: 'tc', command: `node -e "console.error('src/a.ts(1,1): error TS1 old'); ${'process.env.NEW_ERR ? console.error(\'src/b.ts(2,2): error TS2 new\') : 0;'} process.exit(1)"` }]; fs.writeFileSync(cfgPath, JSON.stringify(cfg));
+  const basePath = path.join(app, '.fenceline', 'state', 'baseline.json'); fs.mkdirSync(path.dirname(basePath), { recursive: true });
+  fs.writeFileSync(basePath, JSON.stringify({ checks: { tc: { failing: true, errorLines: ['src/a.ts(1,1): error TS1 old'] } } }));
+  const env = { FENCELINE_STATE_FILE: path.join(tmp, 'state-base.json') };
+  try {
+    hook(app, 'session-start.js', {}, env);
+    hook(app, 'track-edit.js', { tool_name: 'Edit', tool_input: { file_path: 'src/x.ts' } }, env);
+    assert(hook(app, 'ensure-checks.js', { status: 'completed' }, env).includes('checks are green'), 'pre-existing failure only → proceeds to review');
+    hook(app, 'session-start.js', {}, env);
+    hook(app, 'track-edit.js', { tool_name: 'Edit', tool_input: { file_path: 'src/x.ts' } }, env);
+    const blocked = hook(app, 'ensure-checks.js', { status: 'completed' }, { ...env, NEW_ERR: '1' });
+    const shown = blocked.split('```')[1] || '';
+    assert(blocked.includes('new errors since the baseline') && shown.includes('TS2 new') && !shown.includes('TS1 old'), blocked);
+  } finally { fs.unlinkSync(basePath); fs.writeFileSync(cfgPath, saved); }
+});
+
 it('stop-hook: runs checks itself, review, docs sync, re-arms after a new edit, honest tracking only', () => {
   const env = { FENCELINE_STATE_FILE: path.join(tmp, 'state-a.json') };
   hook(app, 'session-start.js', {}, env);
