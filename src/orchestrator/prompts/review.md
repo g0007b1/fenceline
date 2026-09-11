@@ -7,6 +7,12 @@ For every file:
 
 Rules: you may edit only the listed files. Do not touch source code. Be strict about generic sentences — "keep scope narrow" is fine as an operating rule, but "follow best practices" is filler.
 
+Work efficiently — you have a hard cap of about {{turns}} tool calls:
+- Verify with Read / Grep / Glob. Do **not** run lint, type-check, tests or installs; a check command is "verified" if the script exists in the manifest.
+- One simple command per Bash call (no `for` loops, no `;`-chains) — compound commands are denied and waste a turn.
+- Prioritise by cost-if-wrong: invariants and "do not break" lines, protected paths, check commands, vocabulary; prose last.
+- Report the JSON summary before you run out of turns, even if some files were only skimmed (say which).
+
 ## Files to review
 
 {{files}}

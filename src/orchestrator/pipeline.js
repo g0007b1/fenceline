@@ -14,12 +14,12 @@ const SCHEMA = JSON.parse(fs.readFileSync(path.join(__dirname, 'schemas', 'diagn
 const prompt = (name, vars) => R.render(fs.readFileSync(path.join(PROMPTS, name), 'utf8'), vars);
 
 const DEPTH = {
-  quick: { areas: 0, maxTurns: 50, reviewTurns: 40, composeTurns: 60, budget: 6 },
+  quick: { areas: 0, maxTurns: 50, reviewTurns: 40, composeTurns: 60, budget: 8 },
   standard: { areas: 3, maxTurns: 70, reviewTurns: 50, composeTurns: 80, budget: 12 },
   deep: { areas: 6, maxTurns: 100, reviewTurns: 70, composeTurns: 100, budget: 25 },
 };
 // budget split per phase (fractions of the total); synthesis only exists with fan-out
-const SPLIT = { diagnose: 0.40, synthesize: 0.10, compose: 0.30, review: 0.20 };
+const SPLIT = { diagnose: 0.35, synthesize: 0.10, compose: 0.30, review: 0.25 };
 // Project hooks (installed by enforce) must not interfere with the pipeline's own agents:
 // the stop hook would demand a self-review from the compose agent and burn its budget.
 const NO_HOOKS = { disableAllHooks: true };
@@ -153,7 +153,7 @@ async function run(root, opts) {
   if (!opts.skipReview) {
     const reviewR = await runPhase(runner, 'review', {
       cwd: root, allowedTools: runner.toolsWrite(written), permissionMode: 'acceptEdits', maxTurns: depth.reviewTurns, maxBudgetUsd: budget * SPLIT.review, model: opts.model, noPersist: true, settings: NO_HOOKS,
-      prompt: prompt('review.md', { files: written.map((f) => `- ${f}`).join('\n'), diagnosis: JSON.stringify(diagnosis, null, 1) }),
+      prompt: prompt('review.md', { files: written.map((f) => `- ${f}`).join('\n'), diagnosis: JSON.stringify(diagnosis, null, 1), turns: depth.reviewTurns }),
     }, log);
     spent(reviewR);
     const rj = reviewR.json || extractJson(reviewR.text);

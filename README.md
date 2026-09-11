@@ -50,24 +50,37 @@ Agent runtimes to configure (hooks, rules, commands are written for these)
   …
 
 ▸ evidence …
-  ✓ evidence: 1811 files, 4 risk zones, 3 fragile zones, checks: npm run lint && npm run type-check
-▸ diagnose: 3 area agents in parallel (src/features/bookings/, src/features/payments/, src/app/) + whole-repo agent
-  ✓ synthesize done in 94s, $1.84, 22 turns
-  ✓ diagnosis: 14 entities, 11 conventions, 3 fragile zones, 6 protected paths, 5 landmines, 3 open questions
-  ✓ enforce: 19 protected path patterns (6 chosen by the agent), 2 checks, hooks wired for Cursor, Claude Code
+  ✓ evidence: 8 files, 4 risk zones, 1 fragile zones, checks: npm run lint && npm run type-check
+▸ diagnose …
+  ✓ diagnose done in 307s, $0.97, 15 turns
+  ✓ diagnosis: 6 entities, 7 conventions, 3 fragile zones, 8 protected paths, 9 landmines, 9 open questions
+  ✓ enforce: 16 protected path patterns, 2 checks, hooks wired for claude, cursor
 ▸ compose …
-  ✓ compose done in 141s, $2.10 — AGENTS.md, CLAUDE.md, docs/agent-safe-tasks.md, docs/README.md, docs/bookings.md, docs/payments.md, .cursor/rules/fenceline-conventions.mdc, …
+  ✓ compose done in 202s, $1.04, 17 turns
+  ✓ rules: .claude/rules/fenceline-conventions.md, .claude/rules/fenceline-workflow.md, .cursor/rules/fenceline-conventions.mdc, …
+  ✓ compose: 9 files — AGENTS.md, CLAUDE.md, docs/agent-safe-tasks.md, docs/features-bookings.md, docs/features-payments.md, docs/prisma.md, …
 ▸ review …
-  ✓ review: fixed — 7 findings fixed (3 unsupported claims removed, 2 corrected, 2 generic sentences deleted)
+  ✓ review done in 164s, $1.25, 38 turns
+  ✓ doctor: guards behave as configured
 ▸ canary: running a harmless task through Claude Code with hooks live …
   ✓ canary: .env write denied by the hook; stop hook sent the agent back for checks/review
 
-Done in 6.8 min, $5.21.
+Done in 12.1 min, $3.58.
 Open questions only the team can answer (also listed in CLAUDE.md):
-  - Is the Vercel preview the acceptance environment, or staging?
+  - Which Next.js router is intended — App Router or Pages Router? Neither directory exists, so the first agent to add a route picks for the team.
+  - Is `Booking { id Int @id }` a deliberate starting point or a leftover? It has no start/end time, customer or price.
 ```
 
-What you get is not a template. `CLAUDE.md` says what *your* project is and lists *your* nouns with the synonyms not to use. The rules file quotes the file that proves each convention. `docs/bookings.md` says "a slot is 30 minutes aligned to :00/:30 — `slots.ts:41`, fixed in `a1b2c3`". The safe-list names *your* payment module. And the hooks deny exactly the paths the diagnosis named.
+What you get is not a template. From the run above (a deliberately hollow demo repo), the conventions rule the agents wrote reads:
+
+> | Convention | Evidence | Strength |
+> |---|---|---|
+> | Every export is a named `const` bound to an arrow function. No `default` exports, no `function` declarations. | `src/features/bookings/slots.ts:1` · `src/features/payments/pay.ts:1` · `src/components/Header/Header.tsx:1` | universal (3-file sample) |
+> | Domain code lives at `src/features/<domain>/<thing>.ts` — one flat file per concept, **no `index.ts` barrels**. | a Glob for index files returns nothing | universal |
+>
+> **Never delete** the numbered comments `// 1`..`// 12` in `slots.ts:2-13`: each line is the entire diff of one commit and the only in-tree record of which case was considered.
+
+and `CLAUDE.md` opens with "the stack below is declared by manifest, not implemented — grep finds zero `import` statements across `src/`", then lists the nouns with a "do not say" column. The critic then tries to disprove every line, and the hooks deny exactly the paths the diagnosis named.
 
 ## The pipeline
 

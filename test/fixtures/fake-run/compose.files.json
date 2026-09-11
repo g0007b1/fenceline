@@ -4,6 +4,6 @@
  "docs/agent-safe-tasks.md": "# Safe-list\n\n<!-- fenceline:managed:begin -->\n- auto: copy changes in src/app\n- human: src/features/payments\n<!-- fenceline:managed:end -->\n",
  "docs/README.md": "# docs\n\n<!-- fenceline:managed:begin -->\n- features-bookings.md\n<!-- fenceline:managed:end -->\n",
  "docs/features-bookings.md": "# bookings \u2014 domain doc\n\n## Do not break\n- Slots never overlap for one court (fix: overlapping slots case 1..12)\n",
- ".cursor/rules/fenceline-workflow.mdc": "---\ndescription: workflow\nalwaysApply: true\n---\n# Workflow\n- run node -e 0 before finishing\n",
- ".cursor/rules/fenceline-conventions.mdc": "---\ndescription: conventions\nglobs: [\"src/**/*.ts\"]\nalwaysApply: false\n---\n- Feature code lives in src/features/<name> (src/features/bookings/slots.ts)\n"
+ "docs/agent-rules/fenceline-workflow.md": "---\ndescription: workflow\nalwaysApply: true\n---\n# Workflow\n- run node -e 0 before finishing\n",
+ "docs/agent-rules/fenceline-conventions.md": "---\ndescription: conventions\nglobs: [\"src/**/*.ts\"]\nalwaysApply: false\n---\n- Feature code lives in src/features/<name> (src/features/bookings/slots.ts)\n"
 }
