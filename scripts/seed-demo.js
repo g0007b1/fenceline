@@ -16,7 +16,7 @@ const commit = (msg, author) => { git('add -A'); git(`commit -qm "${msg}"`, auth
 w('package.json', JSON.stringify({
   name: 'bookings-web', private: true,
   scripts: { dev: 'next dev', build: 'next build', lint: 'eslint .', 'type-check': 'tsc --noEmit', test: 'vitest run' },
-  dependencies: { next: '15', react: '19', 'react-dom': '19', '@tanstack/react-query': '5', '@prisma/client': '6', stripe: '17', 'next-auth': '5', zod: '3' },
+  dependencies: { next: '15', react: '19', 'react-dom': '19', '@tanstack/react-query': '5', '@prisma/client': '6', stripe: '17', 'next-auth': '5.0.0-beta.25', zod: '3' },
   devDependencies: { typescript: '5', eslint: '9', vitest: '3', prisma: '6', '@types/react': '19' },
 }, null, 2) + '\n');
 w('tsconfig.json', JSON.stringify({ compilerOptions: { strict: true, target: 'ES2022', module: 'ESNext', moduleResolution: 'Bundler', jsx: 'preserve', baseUrl: '.', paths: { '@/*': ['src/*'] }, noEmit: true }, include: ['src', 'tests'] }, null, 2) + '\n');

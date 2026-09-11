@@ -13,7 +13,7 @@ const { getProfile, COMPONENTS } = require('./profiles');
 
 const HOOK_SCRIPTS = ['guard-write.js', 'guard-read.js', 'guard-shell.js', 'track-edit.js', 'track-checks.js', 'ensure-checks.js', 'session-start.js'];
 const COMMANDS = ['fenceline-review', 'fenceline-pr', 'fenceline-handoff', 'fenceline-domain-doc', 'fenceline-triage'];
-const GITIGNORE = ['.fenceline/state/', '.fenceline/state.json', '.fenceline/profile.json', '.fenceline/audit.log', '.fenceline/logs/', '.fenceline/evidence.json', '.fenceline/evidence.md', '.fenceline/run-*.json', '.env', '.env.*', '!.env.example', '!.env.sample'];
+const GITIGNORE = ['.fenceline/state/', '.fenceline/state.json', '.fenceline/profile.json', '.fenceline/audit.log', '.fenceline/logs/', '.fenceline/evidence.json', '.fenceline/evidence.md', '.fenceline/run-*.json', '.fenceline/tasks/', '.env', '.env.*', '!.env.example', '!.env.sample'];
 
 const serialize = (re) => ({ source: re.source, flags: re.flags });
 const serializePath = (x) => ({ source: x.re.source, flags: x.re.flags, label: x.label || null });

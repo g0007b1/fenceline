@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "howToTest", "filesChanged", "checksRun", "blockers", "openQuestions"],
+  "properties": {
+    "summary": { "type": "string" },
+    "howToTest": { "type": "array", "items": { "type": "string" } },
+    "filesChanged": { "type": "array", "items": { "type": "string" } },
+    "checksRun": { "type": "array", "items": { "type": "object", "required": ["command", "passed"], "properties": { "command": { "type": "string" }, "passed": { "type": "boolean" }, "note": { "type": "string" } } } },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "openQuestions": { "type": "array", "items": { "type": "string" } }
+  }
+}

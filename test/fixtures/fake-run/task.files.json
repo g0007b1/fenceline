@@ -1,0 +1,3 @@
+{
+ "src/features/bookings/slots.ts": "export const slots = () => [{ notes: '' }];\n"
+}

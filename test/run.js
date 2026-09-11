@@ -367,7 +367,7 @@ write(orc, 'package.json', JSON.stringify({ name: 'bookings-web', scripts: { lin
 write(orc, 'prisma/schema.prisma', 'model Booking { id Int @id }\n'); write(orc, 'src/app/page.tsx', ''); write(orc, 'src/features/bookings/slots.ts', 'export const slots = () => [];\n'); write(orc, 'src/features/payments/pay.ts', 'export const pay = () => 1;\n');
 gitInit(orc);
 for (let i = 1; i <= 12; i++) { fs.appendFileSync(path.join(orc, 'src/features/bookings/slots.ts'), `// ${i}\n`); sh(orc, `git commit -qam "fix: overlapping slots case ${i}"`); }
-const fakeEnv = { ...process.env, FENCELINE_FAKE_DIR: path.join(__dirname, 'fixtures', 'fake-run'), CI: '1' };
+const fakeEnv = { ...process.env, FENCELINE_FAKE_DIR: path.join(__dirname, 'fixtures', 'fake-run'), FENCELINE_AGENT: 'fake', CI: '1' };
 it('evidence pack is deterministic and prompt-friendly', () => {
   const ev = require('../src/orchestrator/evidence');
   const e = ev.build(orc);
@@ -400,6 +400,32 @@ it('diagnose --agent fake prints the structured diagnosis', () => {
   const j = spawnSync('node', [cli, 'diagnose', '--agent', 'fake', '--depth', 'quick', '--json'], { cwd: orc, encoding: 'utf8', env: fakeEnv });
   assert.strictEqual(JSON.parse(j.stdout).project.name, 'bookings-web');
 });
+it('task --agent fake: triage gate, branch from base, agent edits with hooks live, checks re-run, commit, back on the original branch', () => {
+  sh(orc, 'git add -A && git commit -qm "fenceline environment" && git checkout -q -b feature/work && git checkout -q main');
+  // HUMAN tasks are refused before any spend
+  const refused = spawnSync('node', [cli, 'task', '--agent', 'fake', 'rotate the stripe secret and edit prisma/migrations/0001_init.sql'], { cwd: orc, encoding: 'utf8', env: fakeEnv });
+  assert.strictEqual(refused.status, 3, refused.stdout + refused.stderr); assert(refused.stderr.includes('HUMAN'));
+  assert.strictEqual(sh(orc, 'git branch --list "agent/*"').trim(), '');
+  // a small task goes through
+  const r = spawnSync('node', [cli, 'task', '--agent', 'fake', 'Add an optional notes field to the slots response in src/features/bookings/slots.ts. Given a slot, when listed, then notes is present.', '--no-pr'], { cwd: orc, encoding: 'utf8', env: fakeEnv });
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+  assert(r.stdout.includes('triage: AUTO') && r.stdout.includes('branch: agent/add-an-optional-notes-field-to') && r.stdout.includes('committed'), r.stdout);
+  assert(r.stdout.includes('How to test:') && r.stdout.includes('npm run lint'));
+  assert.strictEqual(sh(orc, 'git rev-parse --abbrev-ref HEAD').trim(), 'main', 'returns to the original branch');
+  assert.strictEqual(sh(orc, 'git status --porcelain -uno').trim(), '', 'main is left clean');
+  const log = sh(orc, 'git log agent/add-an-optional-notes-field-to -1 --pretty=%B');
+  assert(log.startsWith('Add an optional notes field') && log.includes('Agent: Fake runner') && log.includes('checks: lint=pass'), log);
+  assert(sh(orc, 'git show agent/add-an-optional-notes-field-to:src/features/bookings/slots.ts').includes('notes'));
+  const reports = fs.readdirSync(path.join(orc, '.fenceline', 'tasks')); assert(reports.length >= 1);
+  const rep = JSON.parse(fs.readFileSync(path.join(orc, '.fenceline', 'tasks', reports[reports.length - 1]), 'utf8'));
+  assert(rep.ok && rep.checks.length === 1 && rep.checks[0].passed && rep.prBody.includes('## How to test'));
+  // a dirty tree is refused
+  fs.appendFileSync(path.join(orc, 'package.json'), '\n');
+  const dirty = spawnSync('node', [cli, 'task', '--agent', 'fake', 'Add a notes field to slots, given when then', '--no-pr'], { cwd: orc, encoding: 'utf8', env: fakeEnv });
+  assert.strictEqual(dirty.status, 3); assert(dirty.stderr.includes('uncommitted'));
+  sh(orc, 'git checkout -q -- package.json');
+});
+
 it('init --agent none is the template fallback; a missing agent CLI is a clear error', () => {
   // the repo was set up by the (fake) orchestrator above: template mode must refuse to overwrite agent-written docs unless forced
   const refused = spawnSync('node', [cli, 'init', '-y', '--agent', 'none', '--runtime', 'claude'], { cwd: orc, encoding: 'utf8', env: { ...process.env, CI: '1' } });

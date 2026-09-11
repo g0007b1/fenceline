@@ -14,6 +14,8 @@ Usage:  (fenceline --version · fenceline --help)
   fenceline check     [dir] [--no-run]      Verify the setup: hooks wired, checks runnable, docs present.
   fenceline doctor    [dir] [--verbose]     Dry-run every guard (incl. bypass regressions) and simulate a session.
   fenceline triage    [dir] "<task>" [--json]  Is this task safe for an automatic PR? auto / needs-ac / human.
+  fenceline task      [dir] "<task>" [options] Run one task through an agent with the guardrails live:
+                                            triage → branch → agent works → checks re-run → commit → draft PR.
   fenceline config    get [key] | set <key> <value>   Read / change .fenceline/config.json (dotted keys ok).
   fenceline runtimes                        Which agent runtimes are detected here, and what each gets.
   fenceline presets                         List stack presets.
@@ -29,6 +31,14 @@ Options for init / refresh:
   --model <name>                Model for compose and review (runtime alias, e.g. opus). Default: the CLI's default.
   --area-model <name>           Model for the reading-heavy diagnosis agents and synthesis (default: sonnet).
   --skip-review / --skip-prove  Skip the critic pass / the canary proof.
+
+Options for task:
+  --max-turns <n>               Agent turn cap (default 80).  --budget <usd> caps spend (default 6).
+  --no-pr                       Commit on the branch, do not push or open a draft PR.
+  --stay                        Stay on the task branch afterwards (default: return to the original branch).
+  --allow-dirty                 Run even with uncommitted tracked changes.
+  --skip-checks                 Do not re-run the configured checks before committing.
+  --force                       Run even when triage says HUMAN.
   -y, --yes                     No questions: first installed agent, standard depth, detected target runtimes
   -i, --interactive             Force the wizard (also for refresh)
   --dry-run                     Show what would be written; write nothing
@@ -60,7 +70,7 @@ Examples:
   npx fenceline config set strictness.rmRecursive deny
 `;
 
-const VALUE_FLAGS = new Set(['--preset', '--runtime', '--to', '--siblings', '--base-branch', '--branch-prefix', '--profile', '--only', '--skip', '--check', '--protected-branches', '--agent', '--depth', '--budget', '--model', '--area-model']);
+const VALUE_FLAGS = new Set(['--preset', '--runtime', '--to', '--siblings', '--base-branch', '--branch-prefix', '--profile', '--only', '--skip', '--check', '--protected-branches', '--agent', '--depth', '--budget', '--model', '--area-model', '--max-turns', '--effort', '--base']);
 function parseArgs(argv) {
   const args = { _: [], runtimes: [], checks: [] };
   const list = (v) => v.split(',').map((s) => s.trim()).filter(Boolean);
@@ -85,6 +95,13 @@ function parseArgs(argv) {
     else if (a === '--budget') args.budget = parseFloat(argv[++i]);
     else if (a === '--model') args.model = argv[++i];
     else if (a === '--area-model') args.areaModel = argv[++i];
+    else if (a === '--max-turns') args.maxTurns = parseInt(argv[++i], 10);
+    else if (a === '--effort') args.effort = argv[++i];
+    else if (a === '--base') args.base = argv[++i];
+    else if (a === '--no-pr') args.pr = false;
+    else if (a === '--stay') args.stay = true;
+    else if (a === '--allow-dirty') args.allowDirty = true;
+    else if (a === '--skip-checks') args.skipChecks = true;
     else if (a === '--skip-review') args.skipReview = true;
     else if (a === '--skip-prove') args.skipProve = true;
     else if (a === '--profile') args.profile = argv[++i];
@@ -276,8 +293,8 @@ async function main() {
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') { process.stdout.write(HELP); return; }
   const args = parseArgs(rest);
   if (args.help) { process.stdout.write(HELP); return; }
-  const firstIsDir = args._[0] && fs.existsSync(args._[0]) && fs.statSync(args._[0]).isDirectory() && (cmd !== 'triage' || args._.length > 1) && cmd !== 'config';
-  if (!['triage', 'presets', 'config', 'runtimes'].includes(cmd) && args._[0] && !firstIsDir && /[\/\\]/.test(args._[0])) { console.error(`Directory not found: ${args._[0]}`); process.exit(1); }
+  const firstIsDir = args._[0] && fs.existsSync(args._[0]) && fs.statSync(args._[0]).isDirectory() && (!['triage', 'task'].includes(cmd) || args._.length > 1) && cmd !== 'config';
+  if (!['triage', 'task', 'presets', 'config', 'runtimes'].includes(cmd) && args._[0] && !firstIsDir && /[\/\\]/.test(args._[0])) { console.error(`Directory not found: ${args._[0]}`); process.exit(1); }
   const root = path.resolve(firstIsDir ? args._.shift() : process.cwd());
 
   switch (cmd) {
@@ -347,6 +364,32 @@ async function main() {
       const r = triage(root, text);
       if (args.json) process.stdout.write(JSON.stringify(r, null, 2) + '\n'); else console.log(format(r));
       process.exit(r.verdict === 'auto' ? 0 : r.verdict === 'needs-ac' ? 2 : 3);
+    }
+    // eslint-disable-next-line no-fallthrough
+    case 'task': {
+      const text = args._.join(' ').trim();
+      if (!text) { console.error('Usage: fenceline task "<what to do>" [--budget 6] [--max-turns 80] [--no-pr] [--stay]'); process.exit(1); }
+      const { detectRunners, getRunner } = require('../src/orchestrator/runners');
+      const installed = detectRunners().filter((r) => r.installed);
+      const agent = args.agent || process.env.FENCELINE_AGENT || (installed[0] ? installed[0].id : null);
+      if (!agent || agent === 'none') { console.error('No agent runtime installed (claude). `fenceline task` needs one to run the task.'); process.exit(1); }
+      const runner = getRunner(agent);
+      const det = runner.detect(); if (!det.installed) { console.error(`${runner.label} is not installed (looked for \`${runner.bin || runner.id}\`).`); process.exit(1); }
+      console.log(`\nfenceline task — agent: ${runner.label}${args.model ? ', model ' + args.model : ''}\n`);
+      if (runner.authInfo) { const ai = runner.authInfo(); if (ai && ai.loggedIn === false) { console.error(runner.authHint()); process.exit(1); } if (ai && ai.label) console.log(`  auth: ${ai.label}`); }
+      const task = require('../src/orchestrator/task');
+      let rep;
+      try { rep = await task.run(root, runner, text, { ...args, log: (s) => console.log(s) }); }
+      catch (e) { console.error(`\n${e.message}`); process.exit(3); }
+      const P = require('../src/orchestrator/pipeline');
+      console.log(`\n${rep.ok ? 'Done' : rep.branch ? 'Done with problems' : 'Nothing to deliver'}${rep.branch ? ` — branch ${rep.branch}${rep.commit ? ' @ ' + rep.commit : ''}` : ''}${rep.pr ? `\nDraft PR: ${rep.pr}` : ''}`);
+      if (rep.result && rep.result.summary) console.log(`\n${rep.result.summary.trim()}`);
+      if (rep.result && rep.result.howToTest && rep.result.howToTest.length) console.log(`\nHow to test:\n${rep.result.howToTest.map((s, i) => `  ${i + 1}. ${s}`).join('\n')}`);
+      if (rep.result && rep.result.blockers && rep.result.blockers.length) console.log(`\nBlockers:\n${rep.result.blockers.map((b) => `  - ${b}`).join('\n')}`);
+      if (rep.result && rep.result.openQuestions && rep.result.openQuestions.length) console.log(`\nOpen questions:\n${rep.result.openQuestions.map((b) => `  - ${b}`).join('\n')}`);
+      if (rep.turns) console.log(`\n${rep.turns} turns · ${P.costLine({ costUsd: rep.costUsd, ...(runner.authInfo ? (() => { const a = runner.authInfo() || {}; return { billing: a.billing, billingLabel: a.label }; })() : {}) })}`);
+      console.log(`Report: .fenceline/tasks/ · transcript: .fenceline/logs/task.log\n`);
+      process.exit(rep.ok ? 0 : rep.branch ? 2 : 1);
     }
     // eslint-disable-next-line no-fallthrough
     case 'config': configCmd(root, args); return;

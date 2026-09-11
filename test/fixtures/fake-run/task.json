@@ -1,0 +1,18 @@
+{
+ "summary": "Added a `Booking.notes` optional string and surfaced it in the slots response.",
+ "howToTest": [
+  "Run `npm run lint`",
+  "GET /api/slots and confirm `notes` is present"
+ ],
+ "filesChanged": [
+  "src/features/bookings/slots.ts"
+ ],
+ "checksRun": [
+  {
+   "command": "node -e 0",
+   "passed": true
+  }
+ ],
+ "blockers": [],
+ "openQuestions": []
+}
