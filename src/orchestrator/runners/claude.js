@@ -17,6 +17,18 @@ function detect() {
 
 function authHint() { return 'Claude Code is not logged in. Run `claude auth login` (or set ANTHROPIC_API_KEY) and retry.'; }
 
+// How this machine pays for the runs: a claude.ai subscription (usage limits, no per-token charge) or an API key (billed).
+function authInfo() {
+  if (process.env.ANTHROPIC_API_KEY) return { loggedIn: true, billing: 'api', label: 'API key (ANTHROPIC_API_KEY) — usage is billed per token' };
+  try {
+    const r = spawnSync(bin, ['auth', 'status'], { encoding: 'utf8', timeout: 8000 });
+    const j = JSON.parse(r.stdout || '{}');
+    if (!j.loggedIn) return { loggedIn: false, billing: 'unknown', label: 'not logged in' };
+    if (j.authMethod === 'claude.ai') return { loggedIn: true, billing: 'subscription', plan: j.subscriptionType, label: `claude.ai subscription (${j.subscriptionType || 'plan'}) — counts against your usage limits, not billed per token` };
+    return { loggedIn: true, billing: 'api', label: `${j.authMethod || 'API'} — billed per token` };
+  } catch { return { loggedIn: null, billing: 'unknown', label: 'auth status unavailable' }; }
+}
+
 // opts: { cwd, prompt, system, appendSystem, schema, allowedTools[], disallowedTools[], permissionMode, maxTurns,
 //         maxBudgetUsd, model, effort, resume, sessionId, agents{}, settings, includeHookEvents, onEvent(fn), timeoutMs }
 function run(opts) {
@@ -100,4 +112,4 @@ function extractJson(s) {
 function toolsReadOnly() { return ['Read', 'Glob', 'Grep', 'Bash(git log:*)', 'Bash(git diff:*)', 'Bash(git show:*)', 'Bash(git blame:*)', 'Bash(git status:*)', 'Bash(git ls-files:*)', 'Bash(ls:*)', 'Bash(wc:*)', 'Bash(cat:*)', 'Bash(head:*)', 'Bash(tail:*)', 'Bash(rg:*)', 'Bash(find:*)']; }
 function toolsWrite(paths) { return [...toolsReadOnly(), ...paths.flatMap((p) => [`Write(${p})`, `Edit(${p})`])]; }
 
-module.exports = { id, label, bin, detect, run, authHint, toolsReadOnly, toolsWrite, experimental: false };
+module.exports = { id, label, bin, detect, run, authHint, authInfo, toolsReadOnly, toolsWrite, experimental: false };

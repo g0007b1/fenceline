@@ -149,12 +149,23 @@ fenceline uninstall [dir] [--docs]       Exact inverse.
 
 Options that matter: `--agent claude|cursor|codex|gemini|none` (who diagnoses; `none` = template mode, no API), `--depth quick|standard|deep`, `--budget <usd>` (hard cap), `--model`, `--runtime <ids>` (what gets configured), `--profile strict|balanced|light`, `--only` / `--skip` components, `--no-review`, `--no-docs-sync`, `--siblings ../backend`, `--protected-branches`, `--dry-run`, `-y`.
 
-## Cost and control
+## Who pays, and how to log in
 
-- Every phase runs under `--max-turns` and `--max-budget-usd`; the run stops when the budget is hit and tells you which phase was left. Typical: quick $1–3, standard $3–8, deep $8–20.
-- Diagnosis agents get read-only tools. The compose agent may write only the environment files (`AGENTS.md`, `CLAUDE.md`, `docs/**`, the rules directories) — never source. The review agent may edit only what compose wrote.
-- Everything the agents produce is on disk before you commit: `.fenceline/diagnosis.json`, `.fenceline/run-*.json` with per-phase cost, and the files themselves. `git diff` is the review.
-- `--agent none` runs the deterministic part only: scan, presets, templates with `TODO(fenceline)` markers, hooks. Same enforcement, no judgement.
+fenceline has no key, no account and no server. It drives the agent CLI that is already installed on your machine, with that CLI's login — so you pay your provider the way you already do:
+
+| You run the diagnosis with | Log in once | What a run costs you |
+| --- | --- | --- |
+| Claude Code on a claude.ai subscription (Pro / Max) | `claude auth login` | nothing extra — it counts against the subscription's usage window (5-hour and weekly limits). The `$` figure fenceline prints is the API-equivalent estimate the CLI reports, shown as **"≈ $X, not billed"**. |
+| Claude Code with an API key | `export ANTHROPIC_API_KEY=…` | billed per token by Anthropic; fenceline prints **"$X billed to your API key"** and enforces `--budget` as a hard cap |
+| Cursor CLI | `agent login` | Cursor plan / API pricing (the CLI reports no cost; fenceline shows tokens where available) |
+| Codex CLI | `codex login` | ChatGPT plan / OpenAI API |
+| Gemini CLI | first `gemini` run | Google account / API key |
+
+`npx fenceline runtimes` shows which CLIs are installed and how each is authenticated. If a login has expired the run stops at the first phase with the exact command to fix it.
+
+Observed on the demo repository (35 files): `quick` ≈ $3.6 API-equivalent in 12 minutes, `standard` (3 area agents + whole-repo + critic) ≈ $14 in 28 minutes. Every phase runs under `--max-turns` and a share of `--budget`; when a phase hits its cap without answering, fenceline resumes the session once and asks for the answer from what was already read, then falls back to a deterministic merge.
+
+Diagnosis agents get read-only tools. The compose agent may write only the environment files (`AGENTS.md`, `CLAUDE.md`, `docs/**`) — never source. The review agent may edit only what compose wrote. Everything is on disk before you commit: `.fenceline/diagnosis.json`, `.fenceline/run-*.json` with per-phase cost, `.fenceline/logs/*.log` with each phase's transcript, and the files themselves — `git diff` is the review. `--agent none` runs the deterministic part only: scan, presets, templates with `TODO(fenceline)` markers, hooks.
 
 ## Limitations
 

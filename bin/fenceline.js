@@ -217,8 +217,14 @@ function configCmd(root, args) {
 function runtimesCmd(root) {
   const { adapters } = require('../src/adapters');
   const { detectedRuntimes } = require('../src/init');
+  const { detectRunners, getRunner } = require('../src/orchestrator/runners');
   const detected = detectedRuntimes(root);
-  console.log('');
+  console.log('\nAgent CLIs that can run the diagnosis (fenceline uses their login — you pay your provider, not fenceline):');
+  for (const r of detectRunners()) {
+    const auth = r.installed && getRunner(r.id).authInfo ? getRunner(r.id).authInfo() : null;
+    console.log(`  ${pad(r.id, 9)} ${r.installed ? `installed (${r.version})` : 'not installed'}${auth ? ' · ' + auth.label : ''}${r.experimental ? ' · experimental' : ''}`);
+  }
+  console.log('\nRuntimes that get configured (hooks, rules, commands):');
   for (const a of Object.values(adapters)) {
     console.log(`  ${pad(a.id, 9)} ${pad(a.label, 16)} ${detected.includes(a.id) ? 'detected ' : '         '} ${a.experimental ? 'experimental' : 'verified    '}  hooks → ${a.hooksFile}; rules → ${a.rulesPath}/${a.commandsPath ? '; commands → ' + a.commandsPath + '/' : ''}`);
   }
@@ -250,10 +256,10 @@ async function orchestrate(root, cmd, opts) {
     console.log('Checks: ' + diagnosis.checks.map((c) => c.command + (c.verified ? '' : ' (unverified)')).join(' · '));
     if (diagnosis.landmines.length) { console.log('\nLandmines:'); for (const l of diagnosis.landmines) console.log(`  - ${l.what} — ${l.where}`); }
     if (diagnosis.openQuestions.length) { console.log('\nOpen questions for the team:'); for (const q of diagnosis.openQuestions) console.log(`  - ${q}`); }
-    console.log(`\nFull diagnosis: .fenceline/diagnosis.json · cost $${report.costUsd.toFixed(2)}\n`);
+    console.log(`\nFull diagnosis: .fenceline/diagnosis.json · ${pipeline.costLine(report)}\n`);
     return;
   }
-  console.log(`\n${Pm.bold('Done')} in ${((new Date(report.finishedAt) - new Date(report.startedAt)) / 60000).toFixed(1)} min, $${report.costUsd.toFixed(2)}.`);
+  console.log(`\n${Pm.bold('Done')} in ${((new Date(report.finishedAt) - new Date(report.startedAt)) / 60000).toFixed(1)} min · ${pipeline.costLine(report)}.`);
   if (report.phases.compose) console.log(`Written: ${report.phases.compose.written.join(', ')}`);
   if (report.phases.enforce) console.log(`Enforced: ${report.phases.enforce.protectedPaths} protected path patterns (${report.phases.enforce.fromDiagnosis} chosen by the agent), ${report.phases.enforce.checks} checks; hooks: ${report.phases.enforce.wired.join(', ') || 'not installed'}`);
   if (report.phases.review && report.phases.review.summary && report.phases.review.summary.verdict) console.log(`Review: ${report.phases.review.summary.verdict}, ${(report.phases.review.summary.findings || []).length} findings fixed`);

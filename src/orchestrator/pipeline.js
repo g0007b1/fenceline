@@ -98,7 +98,10 @@ async function run(root, opts) {
   if (!det.installed) throw new Error(`${runner.label} CLI not found on PATH (${runner.bin || runner.id}). Install it or pick another runtime.`);
   const depth = DEPTH[opts.depth || 'standard'];
   const budget = opts.budgetUsd || depth.budget;
-  const report = { root, runtime: runner.id, depth: opts.depth || 'standard', startedAt: new Date().toISOString(), phases: {}, costUsd: 0 };
+  const auth = runner.authInfo ? runner.authInfo() : { billing: 'unknown', label: '' };
+  if (auth.loggedIn === false) throw new Error(runner.authHint());
+  log(`  auth: ${auth.label}`);
+  const report = { root, runtime: runner.id, depth: opts.depth || 'standard', startedAt: new Date().toISOString(), phases: {}, costUsd: 0, billing: auth.billing, billingLabel: auth.label };
   const spent = (r) => { report.costUsd += Number(r.costUsd || 0); };
 
   // 0. evidence
@@ -258,4 +261,12 @@ function listWritten(root, globs) {
   return out.sort();
 }
 
-module.exports = { run, DEPTH, areasFrom, fileSpec };
+// "$3.58" means different things depending on how the runtime is paid for.
+function costLine(report) {
+  const usd = `$${Number(report.costUsd || 0).toFixed(2)}`;
+  if (report.billing === 'subscription') return `≈ ${usd} API-equivalent (${report.billingLabel.split(' — ')[0]}; counts against usage limits, not billed)`;
+  if (report.billing === 'api') return `${usd} billed to your API key`;
+  return `${usd} (API-equivalent estimate reported by the runtime)`;
+}
+
+module.exports = { run, DEPTH, areasFrom, fileSpec, costLine };
