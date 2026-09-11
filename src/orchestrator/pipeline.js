@@ -20,7 +20,7 @@ const DEPTH = {
 };
 // budget split per phase (fractions of the total). With fan-out the diagnosis share is spread over the agents.
 const SPLIT_SINGLE = { diagnose: 0.45, compose: 0.30, review: 0.25 };
-const SPLIT_FANOUT = { diagnose: 0.55, synthesize: 0.08, compose: 0.22, review: 0.15 };
+const SPLIT_FANOUT = { diagnose: 0.50, synthesize: 0.12, compose: 0.23, review: 0.15 };
 // Project hooks (installed by enforce) must not interfere with the pipeline's own agents:
 // the stop hook would demand a self-review from the compose agent and burn its budget.
 const NO_HOOKS = { disableAllHooks: true };
@@ -73,7 +73,7 @@ async function runStructured(runner, name, opts, log) {
   if (r.json || !r.sessionId || !r.limited) return r;
   log(`  · ${name}: cap reached after ${r.turns || '?'} turns without a final answer — asking for it from what was read`);
   const again = await runner.run({
-    ...opts, phase: `${name}-finish`, resume: r.sessionId, maxTurns: 3, maxBudgetUsd: Math.max(0.5, (opts.maxBudgetUsd || 1) * 0.3), allowedTools: [], tools: '',
+    ...opts, phase: `${name}-finish`, resume: r.sessionId, maxTurns: 3, maxBudgetUsd: Math.max(0.75, Number(r.costUsd || 0) * 0.5), allowedTools: [], tools: '',
     prompt: 'You reached the tool-call cap. Do not read anything more. Produce the final structured answer NOW from what you have already learned. Anything you did not get to verify goes under openQuestions; do not invent evidence.',
   });
   return { ...again, costUsd: Number(r.costUsd || 0) + Number(again.costUsd || 0), turns: (r.turns || 0) + (again.turns || 0), recovered: !!again.json, limited: true };
@@ -127,7 +127,7 @@ async function run(root, opts) {
     if (!partials.length) { report.phases.diagnose = { ok: false }; throw new Error(results[0].authFail ? runner.authHint() : `diagnose produced no structured output from any agent (${results.map((r) => (r.text || r.stderr || '').slice(0, 120)).join(' | ')})`); }
     // deterministic merge first; the synthesizer only reconciles
     diagnosis = mergeDiagnoses(partials, results[0].json ? 0 : -1);
-    const syn = await runStructured(runner, 'synthesize', { cwd: root, schema: SCHEMA, allowedTools: ['Read', 'Grep', 'Glob'], permissionMode: 'dontAsk', maxTurns: 15, maxBudgetUsd: budget * split.synthesize, model: opts.model, noPersist: false, settings: NO_HOOKS, prompt: prompt('synthesize.md', { merged: JSON.stringify(diagnosis, null, 1), evidence: evidenceMd }) }, log);
+    const syn = await runStructured(runner, 'synthesize', { cwd: root, schema: SCHEMA, allowedTools: ['Read', 'Grep', 'Glob'], permissionMode: 'dontAsk', maxTurns: 12, maxBudgetUsd: budget * split.synthesize, model: opts.model, noPersist: false, settings: NO_HOOKS, prompt: prompt('synthesize.md', { merged: JSON.stringify(trimForSynthesis(diagnosis)), evidence: `(omitted — the merged diagnosis already carries the evidence; project name: ${evidence.stack.name}, stack: ${evidence.stack.summary.join(', ')})` }) }, log);
     spent(syn);
     if (syn.json) { diagnosis = syn.json; log(`  ✓ synthesize: reconciled — $${Number(syn.costUsd || 0).toFixed(2)}`); }
     else log('  · synthesize produced no output — using the deterministic merge of the area diagnoses');
@@ -141,6 +141,7 @@ async function run(root, opts) {
     report.phases.diagnose = { ok: true, areas: [] };
   }
   fs.writeFileSync(path.join(root, '.fenceline', 'diagnosis.json'), JSON.stringify(diagnosis, null, 2));
+  diagnosis = normaliseZones(diagnosis);
   if (opts.diagnoseOnly) { report.finishedAt = new Date().toISOString(); fs.writeFileSync(path.join(root, '.fenceline', `run-${report.startedAt.replace(/[:.]/g, '-')}.json`), JSON.stringify(report, null, 2)); return { report, diagnosis, evidence }; }
   log(`  ✓ diagnosis: ${diagnosis.entities.length} entities, ${diagnosis.conventions.length} conventions, ${diagnosis.fragileZones.length} fragile zones, ${diagnosis.protectedPaths.length} protected paths, ${diagnosis.landmines.length} landmines, ${diagnosis.openQuestions.length} open questions`);
 
@@ -210,6 +211,28 @@ function mergeDiagnoses(partials, primary) {
 }
 // nested key support for uniq('architecture.layers')
 const _uniqPath = (p, key) => key.split('.').reduce((o, k) => (o == null ? undefined : o[k]), p) || [];
+
+// Fragile zones must be directories, unique, and few: a domain doc per zone is only worth it for the worst ones.
+function normaliseZones(diagnosis, max = 6) {
+  const byDir = new Map();
+  for (const z of diagnosis.fragileZones || []) {
+    let dir = String(z.dir || '').trim().replace(/\s*\(.*$/, '').replace(/,.*$/, '').replace(/\/+$/, '');
+    if (/\.[a-z]{1,5}$/i.test(dir) && dir.includes('/')) dir = dir.replace(/\/[^/]+$/, ''); // a file → its directory
+    if (!dir) continue;
+    const cur = byDir.get(dir);
+    if (!cur) byDir.set(dir, { ...z, dir });
+    else { cur.invariants = [...(cur.invariants || []), ...(z.invariants || [])]; cur.knownGaps = [...new Set([...(cur.knownGaps || []), ...(z.knownGaps || [])])]; cur.recentFixes = [...new Set([...(cur.recentFixes || []), ...(z.recentFixes || [])])]; cur.why = cur.why.length >= (z.why || '').length ? cur.why : z.why; }
+  }
+  diagnosis.fragileZones = [...byDir.values()].sort((a, b) => (b.invariants || []).length + (b.recentFixes || []).length - (a.invariants || []).length - (a.recentFixes || []).length).slice(0, max);
+  return diagnosis;
+}
+
+// Trim a merged diagnosis to what a reconcile pass needs to see (long lists are the whole reason it is expensive).
+function trimForSynthesis(d, caps = { entities: 30, conventions: 30, landmines: 25, openQuestions: 25, undocumented: 15 }) {
+  const out = { ...d };
+  for (const [k, n] of Object.entries(caps)) if (Array.isArray(out[k]) && out[k].length > n) out[k] = out[k].slice(0, n);
+  return out;
+}
 
 function extractJson(s) {
   const m = String(s || '').match(/```json\s*([\s\S]*?)```/) || String(s || '').match(/(\{[\s\S]*\})\s*$/);
