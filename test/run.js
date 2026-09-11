@@ -401,7 +401,10 @@ it('diagnose --agent fake prints the structured diagnosis', () => {
   assert.strictEqual(JSON.parse(j.stdout).project.name, 'bookings-web');
 });
 it('init --agent none is the template fallback; a missing agent CLI is a clear error', () => {
-  const r = spawnSync('node', [cli, 'init', '-y', '--agent', 'none', '--runtime', 'claude'], { cwd: orc, encoding: 'utf8', env: { ...process.env, CI: '1' } });
+  // the repo was set up by the (fake) orchestrator above: template mode must refuse to overwrite agent-written docs unless forced
+  const refused = spawnSync('node', [cli, 'init', '-y', '--agent', 'none', '--runtime', 'claude'], { cwd: orc, encoding: 'utf8', env: { ...process.env, CI: '1' } });
+  assert.notStrictEqual(refused.status, 0); assert(refused.stderr.includes('--force'));
+  const r = spawnSync('node', [cli, 'init', '-y', '--agent', 'none', '--runtime', 'claude', '--force'], { cwd: orc, encoding: 'utf8', env: { ...process.env, CI: '1' } });
   assert.strictEqual(r.status, 0, r.stderr); assert(r.stdout.includes('preset "react-web"'));
   const bad = spawnSync('node', [cli, 'init', '-y', '--agent', 'codex'], { cwd: orc, encoding: 'utf8', env: { ...process.env, CI: '1', FENCELINE_CODEX_BIN: '/nonexistent/codex' } });
   assert.notStrictEqual(bad.status, 0); assert(bad.stderr.includes('not installed'));

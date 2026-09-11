@@ -10,10 +10,20 @@ const { execSync } = require('child_process');
 const PATH_RE = /([A-Za-z0-9_.@-]+(?:\/[A-Za-z0-9_.@\-[\]()]+)+(?:\.[A-Za-z0-9]+)?)(?::\d+(?:-\d+)?)?/g;
 const SHA_RE = /\b[0-9a-f]{7,40}\b/g;
 
-function pathsIn(text) { return [...String(text || '').matchAll(PATH_RE)].map((m) => m[1]).filter((p) => !/^https?:/.test(p) && !p.startsWith('@/')); }
+let TOP = null; // top-level entries of the repo, set by makeChecker
+function pathsIn(text) {
+  const t = String(text || '').replace(/\]\([^)]*\)/g, ' ');  // drop markdown link targets: [x](y) → [x]
+  return [...t.matchAll(PATH_RE)].map((m) => m[1]).filter((p) => {
+    if (/^https?:/.test(p) || p.startsWith('@/')) return false;
+    const first = p.split('/')[0];
+    if (TOP && !TOP.has(first)) return false;                       // "Write/Edit", "6/Postgres", "Server/Client"
+    return /\.[A-Za-z0-9]+$/.test(p) || /\/$/.test(p) || p.split('/').length >= 2;
+  });
+}
 function shasIn(text) { return [...String(text || '').matchAll(SHA_RE)].map((m) => m[0]); }
 
 function makeChecker(root) {
+  try { TOP = new Set(fs.readdirSync(root)); } catch { TOP = null; }
   const seen = new Map();
   const exists = (p) => { if (seen.has(p)) return seen.get(p); const ok = fs.existsSync(path.join(root, p)); seen.set(p, ok); return ok; };
   const shaOk = (sha) => { const k = 'sha:' + sha; if (seen.has(k)) return seen.get(k); let ok = false; try { execSync(`git cat-file -e ${sha}^{commit}`, { cwd: root, stdio: 'ignore', timeout: 3000 }); ok = true; } catch { ok = false; } seen.set(k, ok); return ok; };

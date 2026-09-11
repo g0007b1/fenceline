@@ -317,6 +317,9 @@ async function main() {
         if (!rr.detect().installed) { console.error(`Agent runtime "${agent}" is not installed. Installed: ${installed.map((r) => r.id).join(', ') || 'none'}. Use --agent none for template mode.`); process.exit(1); }
       }
       if (agent === 'none') {
+        const { previousConfig } = require('../src/init');
+        const prevCfg = previousConfig(root);
+        if (prevCfg && prevCfg.generatedBy === 'fenceline orchestrator' && !args.force) { console.error('This repository\'s environment was written by agents (fenceline orchestrator). Template mode would overwrite their managed blocks with generic text. Re-run with an agent, or pass --force to overwrite.'); process.exit(1); }
         let result;
         try { result = run(root, opts); } catch (e) { console.error(`\nfenceline ${cmd} failed: ${e.message}\n`); process.exit(1); }
         summarise(cmd, result);

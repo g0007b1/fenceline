@@ -42,8 +42,20 @@ function apply(root, diagnosis, opts) {
     if (MUST_ALLOW.some((f) => re.test(f))) { skipped.push(g + ' (would deny ' + MUST_ALLOW.find((f) => re.test(f)) + ')'); continue; }
     denyWrite.push({ source, flags: '', label: p.label || g, reason: p.reason || null, from: 'diagnosis' });
   }
-  const checks = (diagnosis.checks || []).filter((c) => c.command && c.verified !== false).map((c, i) => ({ id: c.id || `check${i + 1}`, command: c.command }));
+  // Gates must be simple, existing, non-installing commands. The agent's "verified" flag says whether it ran
+  // them, which is not what matters; existence in the manifest is. Fall back to the scanner's detection.
+  const pkg = fs.existsSync(path.join(root, 'package.json')) ? JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) : null;
+  const usable = (cmd) => {
+    if (!cmd || /&&|\|\||;|\|/.test(cmd) || /^\s*(npm|pnpm|yarn|bun)\s+(ci|install|i)\b/.test(cmd) || /^\(/.test(cmd)) return false;
+    const m = cmd.match(/^(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?([\w:-]+)/);
+    if (m) return !!(pkg && (pkg.scripts || {})[m[1]]);
+    return true; // any other single, non-installing command (make lint, ruff check ., cargo clippy, go vet …)
+  };
+  let checks = (diagnosis.checks || []).filter((c) => usable(c.command) && !/^(build|ci)$/.test(c.id) && !/\b(build|dev|start)\b/.test(c.command)).map((c, i) => ({ id: c.id || `check${i + 1}`, command: c.command.trim() }));
+  const isTest = (c) => /\b(test|vitest|jest|pytest|cargo test|go test)\b/.test(c.command);
+  if (!(opts.requireTests)) checks = checks.filter((c) => !isTest(c));
   if (!checks.length) { if (profile.stack.checks.lint) checks.push({ id: 'lint', command: profile.stack.checks.lint }); if (profile.stack.checks.typeCheck) checks.push({ id: 'typeCheck', command: profile.stack.checks.typeCheck }); }
+  checks = checks.filter((c, i, a) => a.findIndex((x) => x.command === c.command) === i);
   const baseBranch = detectBaseBranch(root);
   const protectedBranches = [...new Set([baseBranch, ...(opts.protectedBranches || diagnosis.protectedBranches || []), 'main', 'master'])];
   const siblings = opts.siblings != null ? opts.siblings : (diagnosis.siblingRepos || []).filter((s) => fs.existsSync(path.resolve(root, s)));
