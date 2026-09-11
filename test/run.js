@@ -9,7 +9,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fenceline-'));
 let passed = 0;
 const it = (name, fn) => { try { fn(); passed += 1; console.log(`  ok   ${name}`); } catch (e) { console.log(`  FAIL ${name}\n${e.stack}`); process.exitCode = 1; } };
 const sh = (cwd, c) => execSync(c, { cwd, stdio: 'pipe', encoding: 'utf8' });
-const run = (cwd, args) => spawnSync('node', [cli, ...args], { cwd, encoding: 'utf8' });
+const run = (cwd, args) => spawnSync('node', [cli, ...args], { cwd, encoding: 'utf8', env: { ...process.env, CI: '1', FENCELINE_AGENT: 'none' } });
 const hookRaw = (root, name, input, env, runtime = 'cursor') => spawnSync('node', [path.join(root, '.fenceline', 'hooks', name), '--runtime', runtime, '--root', root], { cwd: root, input: JSON.stringify(input), encoding: 'utf8', env: { ...process.env, ...(env || {}) } });
 const hook = (root, name, input, env, runtime) => hookRaw(root, name, input, env, runtime).stdout;
 const d = (o) => (o.includes('"deny"') ? 'deny' : o.includes('"ask"') ? 'ask' : 'allow');
@@ -353,11 +353,56 @@ it('--no-review / --check / --protected-branches / config set are honoured; refr
 it('interactive wizard reads answers from stdin', () => {
   assert.strictEqual(run(opt, ['uninstall', '--docs']).status, 0);
   // preset: Enter (default) · runtimes: 2 (claude) · profile: 1 (strict) · components: 1,4 (hooks, docs) · siblings: none · base branch: Enter · prefix: bot/
-  const r = spawnSync('node', [cli, 'init'], { cwd: opt, encoding: 'utf8', input: '\n2\n1\n1,4\nnone\n\nbot/\n', env: { ...process.env, FENCELINE_INTERACTIVE: '1', CI: '' } });
+  const r = spawnSync('node', [cli, 'init'], { cwd: opt, encoding: 'utf8', input: 'none\n\n2\n1\n1,4\nnone\n\nbot/\n', env: { ...process.env, FENCELINE_INTERACTIVE: '1', CI: '' } });
   assert.strictEqual(r.status, 0, r.stderr + r.stdout);
   const cfg = JSON.parse(fs.readFileSync(path.join(opt, '.fenceline/config.json'), 'utf8'));
   assert.deepStrictEqual(cfg.runtimes, ['claude']); assert.strictEqual(cfg.profile, 'strict'); assert.deepStrictEqual(cfg.components, ['hooks', 'docs']); assert.strictEqual(cfg.branchPrefix, 'bot/');
   assert(fs.existsSync(path.join(opt, '.claude/settings.json')) && !fs.existsSync(path.join(opt, '.claude/rules')) && !fs.existsSync(path.join(opt, '.cursor/hooks.json')));
+});
+
+// ---------------- Orchestrator with the fake runner ----------------
+console.log('\norchestrator (fake runner)');
+const orc = path.join(tmp, 'orc');
+write(orc, 'package.json', JSON.stringify({ name: 'bookings-web', scripts: { lint: 'node -e 0' }, dependencies: { next: '15', react: '19', '@prisma/client': '6', stripe: '17' }, devDependencies: { prisma: '6' } }));
+write(orc, 'prisma/schema.prisma', 'model Booking { id Int @id }\n'); write(orc, 'src/app/page.tsx', ''); write(orc, 'src/features/bookings/slots.ts', 'export const slots = () => [];\n'); write(orc, 'src/features/payments/pay.ts', 'export const pay = () => 1;\n');
+gitInit(orc);
+for (let i = 1; i <= 12; i++) { fs.appendFileSync(path.join(orc, 'src/features/bookings/slots.ts'), `// ${i}\n`); sh(orc, `git commit -qam "fix: overlapping slots case ${i}"`); }
+const fakeEnv = { ...process.env, FENCELINE_FAKE_DIR: path.join(__dirname, 'fixtures', 'fake-run'), CI: '1' };
+it('evidence pack is deterministic and prompt-friendly', () => {
+  const ev = require('../src/orchestrator/evidence');
+  const e = ev.build(orc);
+  assert(e.fragile.zones.some((z) => z.dir === 'src/features/bookings') && e.risks.some((r) => r.id === 'payments'));
+  const md = ev.toMarkdown(e);
+  assert(md.includes('## Directory tree') && md.includes('src/features/bookings') && md.includes('fix: overlapping slots'));
+});
+it('init --agent fake runs evidence → diagnose → enforce → compose → review and writes an agent-authored environment', () => {
+  const r = spawnSync('node', [cli, 'init', '-y', '--agent', 'fake', '--runtime', 'cursor', '--depth', 'quick'], { cwd: orc, encoding: 'utf8', env: fakeEnv });
+  assert.strictEqual(r.status, 0, r.stderr + r.stdout);
+  assert(r.stdout.includes('diagnosis: 1 entities') && r.stdout.includes('compose:') && r.stdout.includes('Review: fixed'), r.stdout);
+  for (const f of ['.fenceline/evidence.json', '.fenceline/evidence.md', '.fenceline/diagnosis.json', '.fenceline/config.json', '.fenceline/hooks/guard-shell.js', '.cursor/hooks.json', 'AGENTS.md', 'CLAUDE.md', 'docs/features-bookings.md', '.cursor/rules/fenceline-conventions.mdc', 'docs/adr/_TEMPLATE.md']) assert(fs.existsSync(path.join(orc, f)), f);
+  assert(fs.readFileSync(path.join(orc, 'AGENTS.md'), 'utf8').includes('bookings-web'), 'agent-authored content');
+  const cfg = JSON.parse(fs.readFileSync(path.join(orc, '.fenceline/config.json'), 'utf8'));
+  assert.strictEqual(cfg.generatedBy, 'fenceline orchestrator');
+  assert(cfg.denyWrite.some((d) => d.from === 'diagnosis' && d.label === 'payments feature'), 'agent-chosen protected path in config');
+  assert.deepStrictEqual(cfg.checks.map((c) => c.command), ['node -e 0']);
+  // and the agent's decision is enforced by the hooks
+  assert.strictEqual(W(orc, 'src/features/payments/pay.ts'), 'deny'); assert.strictEqual(W(orc, 'src/features/bookings/slots.ts'), 'allow');
+  assert.strictEqual(S(orc, 'echo x > src/features/payments/refund.ts'), 'deny');
+  assert.strictEqual(spawnSync('node', [cli, 'doctor'], { cwd: orc, encoding: 'utf8' }).status, 0);
+  const runs = fs.readdirSync(path.join(orc, '.fenceline')).filter((f) => f.startsWith('run-'));
+  assert.strictEqual(runs.length, 1);
+});
+it('diagnose --agent fake prints the structured diagnosis', () => {
+  const r = spawnSync('node', [cli, 'diagnose', '--agent', 'fake', '--depth', 'quick'], { cwd: orc, encoding: 'utf8', env: fakeEnv });
+  assert.strictEqual(r.status, 0, r.stderr); assert(r.stdout.includes('Booking') && r.stdout.includes('Fragile zones') && r.stdout.includes('Open questions'));
+  const j = spawnSync('node', [cli, 'diagnose', '--agent', 'fake', '--depth', 'quick', '--json'], { cwd: orc, encoding: 'utf8', env: fakeEnv });
+  assert.strictEqual(JSON.parse(j.stdout).project.name, 'bookings-web');
+});
+it('init --agent none is the template fallback; a missing agent CLI is a clear error', () => {
+  const r = spawnSync('node', [cli, 'init', '-y', '--agent', 'none', '--runtime', 'claude'], { cwd: orc, encoding: 'utf8', env: { ...process.env, CI: '1' } });
+  assert.strictEqual(r.status, 0, r.stderr); assert(r.stdout.includes('preset "react-web"'));
+  const bad = spawnSync('node', [cli, 'init', '-y', '--agent', 'codex'], { cwd: orc, encoding: 'utf8', env: { ...process.env, CI: '1', FENCELINE_CODEX_BIN: '/nonexistent/codex' } });
+  assert.notStrictEqual(bad.status, 0); assert(bad.stderr.includes('not installed'));
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}`);

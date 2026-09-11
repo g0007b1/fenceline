@@ -1,0 +1,129 @@
+{
+ "project": {
+  "name": "bookings-web",
+  "purpose": "Next.js app for booking sports courts; users book slots and pay via Stripe.",
+  "users": "players and club admins",
+  "productionMeaning": "deploy to Vercel from main",
+  "evidence": [
+   "package.json",
+   "src/features/bookings/slots.ts"
+  ]
+ },
+ "architecture": {
+  "overview": "Next.js app router; features under src/features; Prisma for persistence.",
+  "layers": [
+   {
+    "name": "features",
+    "paths": [
+     "src/features/"
+    ],
+    "role": "domain logic per feature"
+   }
+  ],
+  "entryPoints": [
+   {
+    "path": "src/app/page.tsx",
+    "role": "home page"
+   }
+  ],
+  "dataFlow": "page \u2192 feature hook \u2192 prisma client"
+ },
+ "entities": [
+  {
+   "term": "Booking",
+   "meaning": "a reserved court slot",
+   "where": [
+    "prisma/schema.prisma",
+    "src/features/bookings/slots.ts"
+   ],
+   "avoid": [
+    "reservation",
+    "order"
+   ]
+  }
+ ],
+ "conventions": [
+  {
+   "rule": "Feature code lives in src/features/<name>; no cross-feature imports",
+   "evidence": [
+    "src/features/bookings/slots.ts"
+   ],
+   "strength": "consistent",
+   "enforcedBy": "convention only"
+  }
+ ],
+ "checks": [
+  {
+   "id": "lint",
+   "command": "node -e 0",
+   "verified": true,
+   "note": "placeholder lint in fixture"
+  }
+ ],
+ "fragileZones": [
+  {
+   "dir": "src/features/bookings",
+   "why": "12 of 13 commits are fixes to slot overlap",
+   "invariants": [
+    {
+     "statement": "Slots never overlap for one court",
+     "evidence": "git log: fix: overlapping slots case 1..12"
+    }
+   ],
+   "knownGaps": [
+    "maintenance windows ignored"
+   ],
+   "recentFixes": [
+    "fix: overlapping slots case 12"
+   ]
+  }
+ ],
+ "riskAreas": [
+  {
+   "id": "payments",
+   "label": "Payments",
+   "paths": [
+    "src/features/payments/"
+   ],
+   "humanOnly": true,
+   "reason": "Stripe charges"
+  }
+ ],
+ "protectedPaths": [
+  {
+   "glob": "prisma/migrations/**",
+   "label": "Prisma migrations",
+   "reason": "schema changes are human-only"
+  },
+  {
+   "glob": "src/features/payments/**",
+   "label": "payments feature",
+   "reason": "moves money"
+  }
+ ],
+ "protectedBranches": [
+  "main"
+ ],
+ "siblingRepos": [],
+ "safeTasks": {
+  "auto": [
+   "copy changes in src/app"
+  ],
+  "human": [
+   "anything under src/features/payments"
+  ]
+ },
+ "landmines": [
+  {
+   "what": "prisma generate must run after schema changes",
+   "where": "prisma/schema.prisma",
+   "howToAvoid": "run npx prisma generate"
+  }
+ ],
+ "undocumented": [
+  "how slots are computed"
+ ],
+ "openQuestions": [
+  "Is Vercel preview the acceptance environment?"
+ ]
+}

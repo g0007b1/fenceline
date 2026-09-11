@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 — agents do the diagnosis
+
+The tool is now an orchestrator. `fenceline init` runs your agent runtime through evidence → diagnose → enforce → compose → review → prove, so the environment it writes is specific to the repository instead of a template with blanks.
+
+- **Runners** drive agent CLIs non-interactively: Claude Code (`claude -p`, JSON-schema output, path-scoped tool permissions; verified), Cursor CLI, Codex, Gemini CLI (experimental). Zero dependencies — the CLIs are spawned, not imported.
+- **Evidence pack**: deterministic facts (stack, checks, risky deps, git churn, tree, manifests, existing docs) as the agents' starting point.
+- **Diagnosis** with a JSON Schema: purpose, architecture, entities + vocabulary, conventions with strength and evidence, fragile zones with invariants, protected paths, checks, safe tasks, landmines, open questions. `standard`/`deep` depth fan out per area and synthesize.
+- **Enforce** turns the agent's protected globs / checks / branches / siblings into hook config; the hooks from 0.3 stay as the enforcement layer.
+- **Compose** writes AGENTS.md, CLAUDE.md, rules, domain docs and the safe-list from the diagnosis, to an explicit quality bar; **review** (fresh agent) disproves and fixes; **prove** runs `doctor` and a canary task through the real runtime.
+- `fenceline diagnose` (diagnosis only, `--json`), `--agent`, `--depth`, `--budget`, `--model`, `--skip-review`, `--skip-prove`; `--agent none` keeps the template mode.
+- Fake runner + fixtures make the whole pipeline testable without an API key.
+
 ## 0.4.1
 
 - `fenceline --help` / `-h` / `--version` work as the first argument.

@@ -7,7 +7,9 @@ const HELP = `fenceline — make any repository safe and productive for AI codin
 
 Usage:  (fenceline --version · fenceline --help)
   fenceline scan      [dir] [--json]        Detect stack, checks, risk zones, fragile areas. No writes.
-  fenceline init      [dir] [options]       Interactive setup (wizard in a terminal; defaults with --yes / in CI).
+  fenceline init      [dir] [options]       Run agents that diagnose this codebase and write its agent environment
+                                            (wizard in a terminal; defaults with --yes / in CI).
+  fenceline diagnose  [dir] [options]       Only the diagnosis: agents read the code, print the structured result.
   fenceline refresh   [dir] [options]       Re-run with the answers you gave last time; flags override.
   fenceline check     [dir] [--no-run]      Verify the setup: hooks wired, checks runnable, docs present.
   fenceline doctor    [dir] [--verbose]     Dry-run every guard (incl. bypass regressions) and simulate a session.
@@ -19,7 +21,14 @@ Usage:  (fenceline --version · fenceline --help)
   fenceline uninstall [dir] [--docs]        Remove everything fenceline installed (--docs: also strip managed blocks).
 
 Options for init / refresh:
-  -y, --yes                     No questions: detected runtimes, balanced profile, default components
+  --agent <claude|none>         Which installed agent CLI runs the diagnosis / composition / review (default: first installed).
+                                'none' = template mode: deterministic scan + templates with TODOs, no API calls.
+  --depth <quick|standard|deep> How much the agents read: quick = one agent; standard = 3 area agents + synthesis;
+                                deep = 6 area agents. Also sets turn and budget caps.
+  --budget <usd>                Hard cap on API spend for the whole run (default per depth: 3 / 8 / 20).
+  --model <name>                Model for the agent runs (runtime alias, e.g. sonnet / opus).
+  --skip-review / --skip-prove  Skip the critic pass / the canary proof.
+  -y, --yes                     No questions: first installed agent, standard depth, detected target runtimes
   -i, --interactive             Force the wizard (also for refresh)
   --dry-run                     Show what would be written; write nothing
   --runtime <id>                cursor | claude | codex | gemini | copilot  (repeatable)
@@ -42,13 +51,15 @@ Profiles:
   light      guards for secrets / git / hook machinery; checks must pass; no review or docs nudges; rm -r allowed
 
 Examples:
-  npx fenceline init                                  # wizard
+  npx fenceline init                                  # wizard: agents diagnose the repo and write its environment
+  npx fenceline init -y --agent claude --depth deep --budget 15
+  npx fenceline init -y --agent none                  # template mode, no API
   npx fenceline init -y --runtime claude --profile strict
   npx fenceline init -y --only hooks,docs --no-review
   npx fenceline config set strictness.rmRecursive deny
 `;
 
-const VALUE_FLAGS = new Set(['--preset', '--runtime', '--to', '--siblings', '--base-branch', '--branch-prefix', '--profile', '--only', '--skip', '--check', '--protected-branches']);
+const VALUE_FLAGS = new Set(['--preset', '--runtime', '--to', '--siblings', '--base-branch', '--branch-prefix', '--profile', '--only', '--skip', '--check', '--protected-branches', '--agent', '--depth', '--budget', '--model']);
 function parseArgs(argv) {
   const args = { _: [], runtimes: [], checks: [] };
   const list = (v) => v.split(',').map((s) => s.trim()).filter(Boolean);
@@ -67,6 +78,13 @@ function parseArgs(argv) {
     else if (a === '--no-docs-sync') args.noDocsSync = true;
     else if (a === '--no-siblings') args.siblings = [];
     else if (a === '--preset') args.preset = argv[++i];
+    else if (a === '--agent') args.agent = argv[++i];
+    else if (a === '--no-agent') args.agent = 'none';
+    else if (a === '--depth') args.depth = argv[++i];
+    else if (a === '--budget') args.budget = parseFloat(argv[++i]);
+    else if (a === '--model') args.model = argv[++i];
+    else if (a === '--skip-review') args.skipReview = true;
+    else if (a === '--skip-prove') args.skipProve = true;
     else if (a === '--profile') args.profile = argv[++i];
     else if (a === '--runtime') args.runtimes.push(...list(argv[++i]));
     else if (a === '--only') args.only = list(argv[++i]);
@@ -120,11 +138,21 @@ async function wizard(root, args, cmd) {
   console.log(Pm.dim(`  checks: ${[profile.stack.checks.lint, profile.stack.checks.typeCheck].filter(Boolean).join(' && ') || 'none detected'}   risk zones: ${profile.risks.length}   fragile zones: ${profile.fragile.zones.length}`));
   for (const w of profile.warnings) console.log(Pm.dim(`  ! ${w}`));
 
+  const { detectRunners } = require('../src/orchestrator/runners');
+  const installed = detectRunners().filter((r) => r.installed);
+  const agentOptions = [...installed.map((r) => ({ id: r.id, label: `${r.label} (${r.version || 'installed'})`, hint: 'agents read the code and write the environment' })), { id: 'none', label: 'No agent — template mode', hint: 'deterministic scan + templates with TODOs; no API calls' }];
+  const agent = await Pm.select('Which agent runtime should diagnose this repository?', agentOptions, args.agent || (prev && prev.agent) || (installed[0] ? installed[0].id : 'none'));
+  let depth = 'standard';
+  if (agent !== 'none') depth = await Pm.select('How deep?', [
+    { id: 'quick', label: 'Quick', hint: 'one agent reads the repo · ~$1–3 · a few minutes' },
+    { id: 'standard', label: 'Standard', hint: '3 area agents in parallel + synthesis + critic · ~$3–8' },
+    { id: 'deep', label: 'Deep', hint: '6 area agents + synthesis + critic · ~$8–20 · large repos' },
+  ], args.depth || (prev && prev.depth) || 'standard');
   const preset = await Pm.select('Stack preset', listPresets().map((id) => ({ id, label: id, hint: getPreset(id).label })), args.preset || (prev && prev.preset) || profile.preset);
 
   const detected = detectedRuntimes(root);
   const rtDefault = args.runtimes.length ? args.runtimes : (prev && prev.runtimes) || (detected.length ? detected : ['cursor', 'claude']);
-  const runtimes = await Pm.multiselect('Agent runtimes to configure', RUNTIME_IDS.map((id) => ({ id, label: adapters[id].label, hint: [detected.includes(id) ? 'detected' : null, adapters[id].experimental ? 'experimental' : null].filter(Boolean).join(', ') })), rtDefault);
+  const runtimes = await Pm.multiselect('Agent runtimes to configure (hooks, rules, commands are written for these)', RUNTIME_IDS.map((id) => ({ id, label: adapters[id].label, hint: [detected.includes(id) ? 'detected' : null, adapters[id].experimental ? 'experimental' : null].filter(Boolean).join(', ') })), rtDefault);
   if (!runtimes.length) { console.error('\nAt least one runtime is needed.'); process.exit(1); }
 
   const profileId = await Pm.select('Strictness profile', Object.entries(PROFILES).map(([id, p]) => ({ id, label: p.label, hint: p.hint })), args.profile || (prev && prev.profile) || 'balanced');
@@ -139,7 +167,7 @@ async function wizard(root, args, cmd) {
   const baseBranch = await Pm.text('Base branch (agents never push to it directly)', args.baseBranch || (prev && prev.baseBranch) || detectBaseBranch(root));
   const branchPrefix = await Pm.text('Branch prefix for agent work', args.branchPrefix || (prev && prev.branchPrefix) || 'agent/');
   Pm.close();
-  return { ...args, preset, runtimes, profile: profileId, components, siblings, baseBranch, branchPrefix };
+  return { ...args, agent, depth, preset, runtimes, profile: profileId, components, siblings, baseBranch, branchPrefix };
 }
 
 function summarise(cmd, result) {
@@ -197,6 +225,43 @@ function runtimesCmd(root) {
   console.log(`\nDefault for init: ${detected.length ? detected.join(', ') : 'cursor, claude (nothing detected)'}. Choose with --runtime <id> or in the wizard.\n`);
 }
 
+async function orchestrate(root, cmd, opts) {
+  const pipeline = require('../src/orchestrator/pipeline');
+  const Pm = require('../src/prompt');
+  const log = (m) => (opts.json ? console.error(m) : console.log(m));
+  log(`\n${Pm.bold('fenceline ' + cmd)} — agent: ${opts.agent}, depth: ${opts.depth || 'standard'}${opts.budget ? `, budget $${opts.budget}` : ''}\n`);
+  let result;
+  try {
+    result = await pipeline.run(root, {
+      runtime: opts.agent, targets: opts.runtimes && opts.runtimes.length ? opts.runtimes : undefined, depth: opts.depth, budgetUsd: opts.budget, model: opts.model,
+      siblings: opts.siblings, protectedBranches: opts.protectedBranches, profile: opts.profile, components: opts.components,
+      skipReview: !!opts.skipReview, skipProve: !!opts.skipProve, diagnoseOnly: !!opts.diagnoseOnly, log,
+    });
+  } catch (e) { console.error(`\nfenceline ${cmd} failed: ${e.message}\n`); process.exit(1); }
+  const { report, diagnosis } = result;
+  if (opts.diagnoseOnly) {
+    if (opts.json) { process.stdout.write(JSON.stringify(diagnosis, null, 2) + '\n'); return; }
+    console.log(`\n${Pm.bold(diagnosis.project.name)} — ${diagnosis.project.purpose}\n`);
+    console.log(`Architecture: ${diagnosis.architecture.overview}\n`);
+    console.log('Entities: ' + diagnosis.entities.map((e) => e.term).join(', '));
+    console.log('\nConventions (' + diagnosis.conventions.length + '):'); for (const c of diagnosis.conventions.slice(0, 12)) console.log(`  - [${c.strength}] ${c.rule}  ${Pm.dim('← ' + c.evidence.slice(0, 2).join(', '))}`);
+    console.log('\nFragile zones:'); for (const z of diagnosis.fragileZones) console.log(`  - ${z.dir}: ${z.why} (${z.invariants.length} invariants)`);
+    console.log('\nProtected paths: ' + diagnosis.protectedPaths.map((p) => p.glob).join(', '));
+    console.log('Checks: ' + diagnosis.checks.map((c) => c.command + (c.verified ? '' : ' (unverified)')).join(' · '));
+    if (diagnosis.landmines.length) { console.log('\nLandmines:'); for (const l of diagnosis.landmines) console.log(`  - ${l.what} — ${l.where}`); }
+    if (diagnosis.openQuestions.length) { console.log('\nOpen questions for the team:'); for (const q of diagnosis.openQuestions) console.log(`  - ${q}`); }
+    console.log(`\nFull diagnosis: .fenceline/diagnosis.json · cost $${report.costUsd.toFixed(2)}\n`);
+    return;
+  }
+  console.log(`\n${Pm.bold('Done')} in ${((new Date(report.finishedAt) - new Date(report.startedAt)) / 60000).toFixed(1)} min, $${report.costUsd.toFixed(2)}.`);
+  if (report.phases.compose) console.log(`Written: ${report.phases.compose.written.join(', ')}`);
+  if (report.phases.enforce) console.log(`Enforced: ${report.phases.enforce.protectedPaths} protected path patterns (${report.phases.enforce.fromDiagnosis} chosen by the agent), ${report.phases.enforce.checks} checks; hooks: ${report.phases.enforce.wired.join(', ') || 'not installed'}`);
+  if (report.phases.review && report.phases.review.summary && report.phases.review.summary.verdict) console.log(`Review: ${report.phases.review.summary.verdict}, ${(report.phases.review.summary.findings || []).length} findings fixed`);
+  if (report.phases.prove) console.log(`Proof: doctor ${report.phases.prove.doctor ? 'ok' : 'FAILED'}; canary ${report.phases.prove.canary && report.phases.prove.canary.envDenied ? '.env write denied' : (report.phases.prove.canary && report.phases.prove.canary.skipped) || 'inconclusive'}`);
+  if (diagnosis.openQuestions.length) { console.log('\nOpen questions only the team can answer (also listed in CLAUDE.md):'); for (const q of diagnosis.openQuestions.slice(0, 8)) console.log(`  - ${q}`); }
+  console.log(`\nReport: .fenceline/run-*.json · diagnosis: .fenceline/diagnosis.json · re-run a phase: fenceline diagnose\n`);
+}
+
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   if (cmd === '--version' || cmd === '-V' || cmd === 'version') { console.log(require('../package.json').version); return; }
@@ -235,9 +300,29 @@ async function main() {
       }
       opts.checks = args.checks.length ? args.checks.map((c, i) => ({ id: `check${i + 1}`, command: c })) : null;
       if (args.noReview || args.noDocsSync) opts.gates = { ...(args.noReview ? { review: false } : {}), ...(args.noDocsSync ? { docsSync: false } : {}) };
-      let result;
-      try { result = run(root, opts); } catch (e) { console.error(`\nfenceline ${cmd} failed: ${e.message}\n`); process.exit(1); }
-      summarise(cmd, result);
+      const { detectRunners } = require('../src/orchestrator/runners');
+      const installed = detectRunners().filter((r) => r.installed);
+      let agent = opts.agent || process.env.FENCELINE_AGENT || (cmd === 'refresh' && opts.prevAgent) || (installed[0] ? installed[0].id : 'none');
+      if (agent !== 'none') {
+        const { getRunner } = require('../src/orchestrator/runners');
+        let rr; try { rr = getRunner(agent); } catch (e) { console.error(e.message); process.exit(1); }
+        if (!rr.detect().installed) { console.error(`Agent runtime "${agent}" is not installed. Installed: ${installed.map((r) => r.id).join(', ') || 'none'}. Use --agent none for template mode.`); process.exit(1); }
+      }
+      if (agent === 'none') {
+        let result;
+        try { result = run(root, opts); } catch (e) { console.error(`\nfenceline ${cmd} failed: ${e.message}\n`); process.exit(1); }
+        summarise(cmd, result);
+        return;
+      }
+      await orchestrate(root, cmd, { ...opts, agent });
+      return;
+    }
+    case 'diagnose': {
+      const { detectRunners } = require('../src/orchestrator/runners');
+      const installed = detectRunners().filter((r) => r.installed);
+      const agent = args.agent || process.env.FENCELINE_AGENT || (installed[0] ? installed[0].id : null);
+      if (!agent || agent === 'none') { console.error('No agent runtime installed (claude). Install Claude Code or use `fenceline scan` for the deterministic part.'); process.exit(1); }
+      await orchestrate(root, 'diagnose', { ...args, agent, diagnoseOnly: true });
       return;
     }
     case 'check': { const { check } = require('../src/check'); process.exit(check(root, { runChecks: !args.noRun }) ? 0 : 1); }

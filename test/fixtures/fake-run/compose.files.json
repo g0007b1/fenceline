@@ -1,0 +1,9 @@
+{
+ "AGENTS.md": "# AGENTS.md\n\n<!-- fenceline:managed:begin -->\nOperating manual for bookings-web. Hard bans (enforced by hooks): prisma/migrations/**, src/features/payments/**.\nBefore finishing: node -e 0\n<!-- fenceline:managed:end -->\n",
+ "CLAUDE.md": "# CLAUDE.md\n\n<!-- fenceline:managed:begin -->\n@AGENTS.md\n\nbookings-web: Next.js app for booking courts. Vocabulary: Booking (not reservation).\n<!-- fenceline:managed:end -->\n",
+ "docs/agent-safe-tasks.md": "# Safe-list\n\n<!-- fenceline:managed:begin -->\n- auto: copy changes in src/app\n- human: src/features/payments\n<!-- fenceline:managed:end -->\n",
+ "docs/README.md": "# docs\n\n<!-- fenceline:managed:begin -->\n- features-bookings.md\n<!-- fenceline:managed:end -->\n",
+ "docs/features-bookings.md": "# bookings \u2014 domain doc\n\n## Do not break\n- Slots never overlap for one court (fix: overlapping slots case 1..12)\n",
+ ".cursor/rules/fenceline-workflow.mdc": "---\ndescription: workflow\nalwaysApply: true\n---\n# Workflow\n- run node -e 0 before finishing\n",
+ ".cursor/rules/fenceline-conventions.mdc": "---\ndescription: conventions\nglobs: [\"src/**/*.ts\"]\nalwaysApply: false\n---\n- Feature code lives in src/features/<name> (src/features/bookings/slots.ts)\n"
+}

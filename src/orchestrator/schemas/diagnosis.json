@@ -1,0 +1,67 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "architecture", "entities", "conventions", "checks", "fragileZones", "riskAreas", "protectedPaths", "safeTasks", "landmines", "openQuestions"],
+  "properties": {
+    "project": {
+      "type": "object", "additionalProperties": false, "required": ["name", "purpose", "users", "productionMeaning", "evidence"],
+      "properties": {
+        "name": { "type": "string" },
+        "purpose": { "type": "string", "description": "2-4 sentences: what it does, for whom, in the project's own words" },
+        "users": { "type": "string" },
+        "productionMeaning": { "type": "string", "description": "what 'shipped' means here: store release, deploy, npm publish…" },
+        "evidence": { "type": "array", "items": { "type": "string" }, "description": "files that support the above" }
+      }
+    },
+    "architecture": {
+      "type": "object", "additionalProperties": false, "required": ["overview", "layers", "entryPoints", "dataFlow"],
+      "properties": {
+        "overview": { "type": "string" },
+        "layers": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["name", "paths", "role"], "properties": { "name": { "type": "string" }, "paths": { "type": "array", "items": { "type": "string" } }, "role": { "type": "string" } } } },
+        "entryPoints": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["path", "role"], "properties": { "path": { "type": "string" }, "role": { "type": "string" } } } },
+        "dataFlow": { "type": "string", "description": "how a request / event / screen gets its data, with file names" }
+      }
+    },
+    "entities": {
+      "type": "array", "description": "the 5-20 domain nouns that matter",
+      "items": { "type": "object", "additionalProperties": false, "required": ["term", "meaning", "where", "avoid"], "properties": { "term": { "type": "string" }, "meaning": { "type": "string" }, "where": { "type": "array", "items": { "type": "string" } }, "avoid": { "type": "array", "items": { "type": "string" }, "description": "synonyms NOT to use" } } }
+    },
+    "conventions": {
+      "type": "array", "description": "rules the code actually follows, each with file evidence",
+      "items": { "type": "object", "additionalProperties": false, "required": ["rule", "evidence", "strength", "enforcedBy"], "properties": { "rule": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" } }, "strength": { "type": "string", "enum": ["universal", "consistent", "mixed"] }, "enforcedBy": { "type": "string", "description": "linter / type system / tests / convention only" } } }
+    },
+    "checks": {
+      "type": "array", "description": "commands that gate a change; only ones that exist and run",
+      "items": { "type": "object", "additionalProperties": false, "required": ["id", "command", "verified", "note"], "properties": { "id": { "type": "string" }, "command": { "type": "string" }, "verified": { "type": "boolean" }, "note": { "type": "string" } } }
+    },
+    "fragileZones": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": false, "required": ["dir", "why", "invariants", "knownGaps", "recentFixes"], "properties": {
+        "dir": { "type": "string" }, "why": { "type": "string" },
+        "invariants": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["statement", "evidence"], "properties": { "statement": { "type": "string" }, "evidence": { "type": "string" } } } },
+        "knownGaps": { "type": "array", "items": { "type": "string" } },
+        "recentFixes": { "type": "array", "items": { "type": "string" } }
+      } }
+    },
+    "riskAreas": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": false, "required": ["id", "label", "paths", "humanOnly", "reason"], "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "paths": { "type": "array", "items": { "type": "string" } }, "humanOnly": { "type": "boolean" }, "reason": { "type": "string" } } }
+    },
+    "protectedPaths": {
+      "type": "array", "description": "paths an agent must never write; globs relative to repo root",
+      "items": { "type": "object", "additionalProperties": false, "required": ["glob", "label", "reason"], "properties": { "glob": { "type": "string" }, "label": { "type": "string" }, "reason": { "type": "string" } } }
+    },
+    "protectedBranches": { "type": "array", "items": { "type": "string" } },
+    "siblingRepos": { "type": "array", "items": { "type": "string" }, "description": "relative paths like ../backend that this repo depends on and must not edit" },
+    "safeTasks": {
+      "type": "object", "additionalProperties": false, "required": ["auto", "human"],
+      "properties": { "auto": { "type": "array", "items": { "type": "string" } }, "human": { "type": "array", "items": { "type": "string" } } }
+    },
+    "landmines": {
+      "type": "array", "description": "things that break in non-obvious ways",
+      "items": { "type": "object", "additionalProperties": false, "required": ["what", "where", "howToAvoid"], "properties": { "what": { "type": "string" }, "where": { "type": "string" }, "howToAvoid": { "type": "string" } } }
+    },
+    "undocumented": { "type": "array", "items": { "type": "string" } },
+    "openQuestions": { "type": "array", "items": { "type": "string" }, "description": "what only the team can answer" }
+  }
+}

@@ -15,7 +15,7 @@ function check(root, { runChecks = true } = {}) {
   say(fs.existsSync(cfgPath), '.fenceline/config.json present');
   if (!fs.existsSync(cfgPath)) { console.log('\nRun `npx fenceline init` first.\n'); return false; }
   const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-  if (cfg.version !== 2) warn(`config version ${cfg.version} — run \`npx fenceline refresh\` to upgrade`);
+  if (cfg.version < 3) warn(`config version ${cfg.version} — run \`npx fenceline refresh\` to upgrade`);
   for (const f of HOOK_SCRIPTS) say(fs.existsSync(path.join(root, '.fenceline', 'hooks', f)), `hook script ${f}`);
   for (const a of getAdapters(cfg.runtimes)) {
     if (a.enforces) say(a.isWired(root), `${a.label} hooks wired`);
