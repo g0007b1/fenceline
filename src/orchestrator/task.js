@@ -32,7 +32,7 @@ function runChecks(root, checks, timeoutMs, baseline) {
     const base = baseline && baseline.checks[c.id];
     const newErrors = base && base.failing ? errs.filter((l) => !base.errorLines.includes(l)) : errs;
     const preExisting = !!(base && base.failing && r.status !== 0 && !newErrors.length);
-    return { id: c.id, command: c.command, passed: r.status === 0 || preExisting, exit: r.status, preExisting, newErrors: newErrors.slice(0, 20), errorLines: errs, ms: Date.now() - started, tail: out.split('\n').slice(-12).join('\n') };
+    return { id: c.id, command: c.command, passed: r.status === 0 || preExisting, exit: r.status, preExisting, newErrors: r.status === 0 ? [] : newErrors.slice(0, 20), errorLines: errs, ms: Date.now() - started, tail: out.split('\n').slice(-12).join('\n') };
   });
 }
 // Run the checks on the untouched base so pre-existing failures are known before the agent starts.
@@ -47,14 +47,20 @@ function writeBaseline(root, checks, timeoutMs) {
 
 // Facts from the hook event stream: how often the guardrails intervened.
 function hookStats(events) {
-  const st = { denied: [], stopBlocks: 0, hookEvents: 0 };
+  const st = { denied: [], asked: [], stopBlocks: 0, hookEvents: 0 };
+  const short = (r) => String(r || '').replace(/^fenceline:\s*/, '').replace(/\s+/g, ' ').slice(0, 140);
   for (const e of events || []) {
     if (e.type !== 'system' || e.subtype !== 'hook_response') continue;
     st.hookEvents++;
     const out = String(e.output || '');
     const name = String(e.hook_name || e.hook_event || '');
-    if (/"decision":"deny"|"permissionDecision":"deny"/.test(out)) { const m = out.match(/"(?:reason|permissionDecisionReason)":"([^"]{0,140})/); st.denied.push(m ? m[1] : name); }
-    if (/^Stop/.test(name) && /"decision":"block"|followup_message/.test(out)) st.stopBlocks++;
+    let j = null; try { j = JSON.parse(out); } catch { j = null; }
+    const hs = (j && j.hookSpecificOutput) || {};
+    const decision = hs.permissionDecision || (j && j.decision) || (/"permissionDecision":"deny"|"decision":"deny"/.test(out) ? 'deny' : /"permissionDecision":"ask"/.test(out) ? 'ask' : null);
+    const reason = hs.permissionDecisionReason || (j && j.reason) || '';
+    if (decision === 'deny') st.denied.push(short(reason) || name);
+    else if (decision === 'ask') st.asked.push(short(reason) || name);   // in headless mode an "ask" is a denial the agent must route around
+    if (/^Stop/.test(name) && (decision === 'block' || /followup_message/.test(out))) st.stopBlocks++;
   }
   return st;
 }
@@ -66,7 +72,7 @@ function prBody(rep) {
   L.push(`## Checks (re-run by fenceline after the agent finished)`, '', ...rep.checks.map((c) => `- ${c.passed ? '✅' : '❌'} \`${c.command}\`${c.preExisting ? ' — already failing on the base branch, no new errors' : c.passed ? '' : ` — ${(c.newErrors || []).length} new error line(s)`}`), '');
   if (rep.result.blockers && rep.result.blockers.length) L.push(`## Blockers`, '', ...rep.result.blockers.map((b) => `- ${b}`), '');
   if (rep.result.openQuestions && rep.result.openQuestions.length) L.push(`## Open questions`, '', ...rep.result.openQuestions.map((q) => `- ${q}`), '');
-  L.push(`## Guardrails`, '', `- triage: **${rep.triage.verdict}** (${rep.triage.reasons.slice(0, 3).join('; ')})`, `- protected-path writes denied by hooks: ${rep.hooks.denied.length}${rep.hooks.denied.length ? ' — ' + rep.hooks.denied.slice(0, 3).join('; ') : ''}`, `- times the stop hook sent the agent back for checks / review: ${rep.hooks.stopBlocks}`, `- agent: ${rep.agent}${rep.model ? ' (' + rep.model + ')' : ''}, ${rep.turns || '?'} turns, ≈ $${(rep.costUsd || 0).toFixed(2)}${rep.limited ? ', **cap reached**' : ''}`, '');
+  L.push(`## Guardrails`, '', `- triage: **${rep.triage.verdict}** (${rep.triage.reasons.slice(0, 3).join('; ')})`, `- writes / commands denied by hooks: ${rep.hooks.denied.length}${rep.hooks.denied.length ? ' — ' + rep.hooks.denied.slice(0, 3).join('; ') : ''}`, `- commands that would have asked a human (refused unattended): ${(rep.hooks.asked || []).length}${(rep.hooks.asked || []).length ? ' — ' + rep.hooks.asked.slice(0, 3).join('; ') : ''}`, `- times the stop hook sent the agent back for checks / review: ${rep.hooks.stopBlocks}`, `- agent: ${rep.agent}${rep.model ? ' (' + rep.model + ')' : ''}, ${rep.turns || '?'} turns, ≈ $${(rep.costUsd || 0).toFixed(2)}${rep.limited ? ', **cap reached**' : ''}`, '');
   L.push(`---`, `_Draft PR opened by [fenceline](https://github.com/g0007b1/fenceline) \`task\`. A human reviews and merges._`);
   return L.join('\n');
 }
@@ -74,7 +80,7 @@ function prBody(rep) {
 async function run(root, runner, text, opts = {}) {
   const log = opts.log || (() => {});
   const cfg = loadConfig(root);
-  const rep = { task: text, agent: runner.id, model: opts.model || null, startedAt: new Date().toISOString(), triage: null, branch: null, base: null, result: null, checks: [], hooks: { denied: [], stopBlocks: 0 }, commit: null, pr: null, costUsd: 0, turns: 0, limited: false, ok: false };
+  const rep = { task: text, agent: runner.id, model: opts.model || null, startedAt: new Date().toISOString(), triage: null, branch: null, base: null, result: null, checks: [], hooks: { denied: [], asked: [], stopBlocks: 0 }, commit: null, pr: null, costUsd: 0, turns: 0, limited: false, ok: false };
 
   // 0. preconditions: a git repo with a clean tracked tree; hooks wired for this runtime
   if (!fs.existsSync(path.join(root, '.git'))) throw new Error('Not a git repository — `fenceline task` needs a branch to work on.');
@@ -129,10 +135,11 @@ async function run(root, runner, text, opts = {}) {
     rep.hooks = hookStats(r.events);
     rep.result = r.json || { summary: (r.text || '').slice(0, 2000), howToTest: [], filesChanged: [], checksRun: [], blockers: r.ok ? [] : [`agent did not finish cleanly: ${r.stderr || r.text || 'no output'}`.slice(0, 500)], openQuestions: [] };
     if (r.authFail) throw new Error(runner.authHint());
-    log(`  ${r.ok ? '✓' : '✖'} agent finished — ${rep.turns} turns, $${rep.costUsd.toFixed(2)}${rep.limited ? ' (cap reached)' : ''}; hooks: ${rep.hooks.denied.length} denied, stop hook intervened ${rep.hooks.stopBlocks}×`);
+    log(`  ${r.ok ? '✓' : '✖'} agent finished — ${rep.turns} turns, $${rep.costUsd.toFixed(2)}${rep.limited ? ' (cap reached)' : ''}; hooks: ${rep.hooks.denied.length} denied, ${rep.hooks.asked.length} would-ask, stop hook intervened ${rep.hooks.stopBlocks}×`);
 
     // 4. what changed?
-    const changed = (tryS('git status --porcelain', root) || '').split('\n').filter(Boolean).map((l) => l.slice(3)).filter((p) => !/^\.fenceline\/(state|logs|audit)/.test(p));
+    let porcelain = ''; try { porcelain = execSync('git status --porcelain', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { porcelain = ''; }
+    const changed = porcelain.split('\n').filter(Boolean).map((l) => l.replace(/^.{2} /, '').replace(/^.* -> /, '')).filter((p) => !/^\.fenceline\/(state|logs|audit)/.test(p));
     rep.filesChanged = changed;
     if (!changed.length) { log('  · the agent changed nothing — no commit, no PR'); rep.ok = false; restore(); tryS(`git branch -D ${branch}`, root); rep.branch = null; return rep; }
     log(`  changed: ${changed.slice(0, 6).join(', ')}${changed.length > 6 ? ` +${changed.length - 6}` : ''}`);

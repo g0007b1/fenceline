@@ -1,15 +1,17 @@
 # Architecture
 
 ```
-bin/fenceline.js        CLI: init (orchestrator) | diagnose | refresh | scan | check | doctor | triage | config | runtimes | presets | skill | uninstall
+bin/fenceline.js        CLI: init (orchestrator) | task | diagnose | refresh | scan | check | doctor | triage | config | runtimes | presets | skill | uninstall
 src/orchestrator/
   runners/              drive an agent CLI non-interactively: claude (verified) · cursor · codex · gemini (experimental) · fake (tests)
   evidence.js           deterministic evidence pack (scan + tree + churn + manifests + existing docs) → .fenceline/evidence.{json,md}
-  prompts/*.md          diagnose · synthesize · compose · review · canary — the product lives here
-  schemas/diagnosis.json  JSON Schema the diagnosis must satisfy (every claim with evidence)
+  prompts/*.md          diagnose · synthesize · compose · review · canary · task — the product lives here
+  schemas/*.json        JSON Schemas the agents' answers must satisfy (diagnosis: every claim with evidence; task: summary + how-to-test)
   pipeline.js           evidence → diagnose (fan-out + synthesis) → enforce → compose → review → prove; budget/turn caps per phase
   enforce.js            diagnosis → .fenceline/config.json + hooks + runtime hook configs (agents decide what, code enforces how)
   prove.js              doctor + canary task through the real runtime with hooks live
+  verify.js             deterministic checks on a diagnosis / written docs: cited paths, commits and scripts must exist; duplicates merged
+  task.js               `fenceline task`: triage → branch → agent with hooks live → baseline-aware checks → commit → draft PR
 src/
   scan.js                 walks the repo → profile.json (stack, checks, risks, fragile zones, siblings, warnings)
   detectors/              one file per ecosystem: node · python · go · rust · generic (Makefile / justfile / Taskfile)
@@ -37,7 +39,8 @@ test/run.js               end-to-end tests over throwaway repos (expo + sibling,
 1. `scan` never writes. It produces a JSON profile that everything else consumes — the CLI, the templates, `triage`, the skill.
 2. `init` = scan → choose preset → build config → copy hooks → write per-runtime hook config, rules and commands → write managed docs. Every step is idempotent.
 3. Hooks read `.fenceline/config.json` on every call and keep per-session state in `.fenceline/state/<id>.json`; denies and asks go to `.fenceline/audit.log`. No daemon, no cache. An unparsable config denies everything.
-4. `doctor` runs the real hook scripts with synthetic payloads (preset samples + this repo's siblings and checks) and drives a full session through the stop-hook on a scratch state file.
+4. `task` writes `.fenceline/state/baseline.json` (which checks already fail on the base and with which error lines) before the agent starts; the stop hook and the post-run check compare against it, so only *new* errors block. The agent never commits: fenceline commits from its working tree and opens the draft PR, so the branch shape is deterministic.
+5. `doctor` runs the real hook scripts with synthetic payloads (preset samples + this repo's siblings and checks) and drives a full session through the stop-hook on a scratch state file.
 
 ## Design choices
 

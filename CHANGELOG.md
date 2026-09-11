@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 — `fenceline task`: the environment does a job
+
+- **`fenceline task "<text>"`** runs one business task through an agent runtime with the guardrails live: deterministic triage (HUMAN tasks are refused before any spend) → branch from the base (`agent/<slug>`) → the agent works with hooks denying protected paths and the stop hook re-running checks → fenceline re-runs the checks itself → commit with the agent's summary → draft PR with "How to test", checks, guardrail statistics (`--no-pr`, `--stay`, `--max-turns`, `--budget`, `--force`, `--allow-dirty`). The agent never commits or pushes.
+- **Baseline-aware checks**: before the agent starts, the checks run on the untouched base; a check that already fails there is reported as pre-existing and only *new* error lines block the stop hook or the PR. Pre-existing failures in protected code no longer trap the agent.
+- **Cheaper diagnosis**: reading-heavy phases default to `--area-model sonnet`; areas come from fragile zones and module roots (`src/features/x/`, `packages/x/`) instead of top-level directories; area agents get a focused evidence pack. Standard run on the demo repo: $14.26 → $6.07.
+- **Deterministic verification before the critic**: every cited path / commit / script in the diagnosis is checked against the repo; unverifiable conventions become open questions, duplicates from parallel agents are merged, and the written docs are scanned for paths that do not exist so the review agent starts from facts.
+- Enforce accepts only simple, existing, non-installing commands as stop-hook gates (no `npm ci && …`, no `build`), so `doctor` cannot fail on a gate the repo cannot run.
+- `init --agent none` refuses to overwrite an agent-written environment without `--force`.
+
 ## 0.5.0 — agents do the diagnosis
 
 The tool is now an orchestrator. `fenceline init` runs your agent runtime through evidence → diagnose → enforce → compose → review → prove, so the environment it writes is specific to the repository instead of a template with blanks.

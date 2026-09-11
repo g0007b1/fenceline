@@ -1,7 +1,7 @@
 <h1 align="center">fenceline</h1>
 
 <p align="center"><strong>Agents that read your codebase and build the environment other agents need — then hooks that make it stick.</strong><br>
-One command. Your agent runtime does the diagnosis; fenceline turns what it learned into an operating manual, rules, domain docs, a safe-list and runtime-enforced guards that are specific to <em>your</em> repository.</p>
+One command. Your agent runtime does the diagnosis; fenceline turns what it learned into an operating manual, rules, domain docs, a safe-list and runtime-enforced guards that are specific to <em>your</em> repository. Then <code>fenceline task</code> hands an agent a business task inside that environment and brings back a draft PR.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/fenceline"><img alt="npm" src="https://img.shields.io/npm/v/fenceline?color=cb3837&label=npm"></a>
@@ -11,7 +11,7 @@ One command. Your agent runtime does the diagnosis; fenceline turns what it lear
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
-<p align="center"><code>npx fenceline init</code></p>
+<p align="center"><code>npx fenceline init</code> &nbsp;·&nbsp; <code>npx fenceline task "…"</code></p>
 
 <p align="center">
   Drives: <b>Claude Code</b> · Cursor CLI · Codex · Gemini CLI &nbsp;|&nbsp; Configures: <b>Cursor</b> · <b>Claude Code</b> · Codex · Gemini · Copilot &nbsp;|&nbsp; Node · Python · Go · Rust · anything
@@ -82,6 +82,47 @@ What you get is not a template. From the run above (a deliberately hollow demo r
 
 and `CLAUDE.md` opens with "the stack below is declared by manifest, not implemented — grep finds zero `import` statements across `src/`", then lists the nouns with a "do not say" column. The critic then tries to disprove every line, and the hooks deny exactly the paths the diagnosis named.
 
+## Then give it a job
+
+The environment exists so that a business task can be handed to an agent and come back as a reviewable PR. `fenceline task` does exactly that, with the guardrails live:
+
+```
+$ npx fenceline task "Implement the missing useCourts() hook referenced in src/components/CourtList/CourtList.tsx
+  and render the courts in the list. Given the club has courts, when CourtList renders, then each court appears
+  as an <li> with its name. Follow the useSlots / useQuery pattern in src/features/bookings/api.ts and add a
+  read-only GET /api/courts route. Add a Vitest test for any pure helper you introduce."
+
+  triage: AUTO — names concrete paths (src/components/courtlist/courtlist.tsx, src/features/bookings/api.ts, api/courts)
+  branch: agent/implement-the-missing-usecourts-hook-referenced (from main)
+  · baseline: npm run type-check already fails (1 error lines) — only new errors will count
+▸ agent: Claude Code working with hooks live (max 80 turns, $6 cap) …
+  ✓ agent finished — 53 turns, $1.86; hooks: 1 denied, 3 would-ask, stop hook intervened 1×
+  changed: eslint.config.js, src/app/layout.tsx, src/components/CourtList/CourtList.tsx, src/features/bookings/api.ts, src/app/api/courts/, … +4
+  ✓ npm run lint (0s)
+  ✓ npm run type-check (2s) — fails as on the base branch, no new errors
+  ✓ committed c89f142 on agent/implement-the-missing-usecourts-hook-referenced
+
+How to test:
+  1. Run `npm run lint` — expect 0 errors.
+  2. Run `npm run type-check` — expect exactly 1 error, the pre-existing src/features/payments/webhook.ts(7,69) TS2352 that also fails on the base branch.
+  3. Run `npm run test` — expect 6 tests passing across 3 files (tests/courts.test.ts, tests/slots.test.ts, tests/pricing.test.ts).
+  4. Manual check: `npm run dev`, then `curl http://localhost:3000/api/courts` — expect a JSON array of Court rows, ordered by name.
+
+Open questions:
+  - eslint.config.js change needs a reviewer's nod: I added ignores:['.next/**'] … The guard denied `rm -rf .next`
+    ('recursive delete, ask a human'), and per the rules I did not seek another path to delete it.
+  - The repo docs are wrong about lint enforcement: … the flat config has no `files` key, so ESLint never lints src/**/*.ts(x).
+```
+
+What happened in those ten minutes, and what the PR body records:
+
+- **Triage first, spend second.** The same deterministic verdict the docs give the agent (`auto` / `needs-ac` / `human`) runs before a single token is spent. A task that names a protected path or a payments flow is refused with the reasons; `--force` overrides.
+- **Baseline.** The checks run on the untouched base before the agent starts. `type-check` already failed inside `src/features/payments/` — a human-only zone the agent could not have fixed — so both the stop hook and the final gate compare error lines and count only *new* ones. Without this, a pre-existing failure in protected code traps every agent forever.
+- **Hooks did their job, and the agent worked around them the right way.** `rm -rf .next` was met with *ask a human* (there is no human in a headless run, so it is a refusal); the agent chose to exclude build output in the ESLint config and **wrote that down as an open question for the reviewer** instead of finding another way to delete the directory. Its attempt to write a note outside the repository was denied. The stop hook sent it back once for the self-review against the rules.
+- **The agent never commits.** fenceline commits from the working tree with the agent's summary, pushes `agent/<slug>` and opens a draft PR (`gh`) whose body has the summary, the numbered "How to test", the check results, the blockers and open questions, and the guardrail statistics. `--no-pr` keeps it local; `--stay` leaves you on the branch.
+
+The interesting part is not the feature — it is the two findings in "open questions": a config that lints nothing in `src/` while three docs claim otherwise, and a build artefact that breaks lint. Both came from an agent that had to run the real checks because a hook would not let it finish otherwise.
+
 ## The pipeline
 
 ```mermaid
@@ -137,6 +178,8 @@ Seven dependency-free scripts, installed into `.fenceline/hooks/` and registered
 
 ```
 fenceline init      [dir] [options]      Wizard → agents diagnose the repo → environment written, enforced, proven.
+fenceline task      "<task>" [options]   triage → branch → agent works with hooks live → checks re-run → commit → draft PR.
+                                         --no-pr · --stay · --max-turns 80 · --budget 6 · --force (override HUMAN) · --allow-dirty
 fenceline diagnose  [dir] [--json]       Only the diagnosis. Prints entities, conventions, fragile zones, landmines, open questions.
 fenceline refresh   [dir] [options]      Re-run with last time's answers; managed blocks updated, your text kept.
 fenceline doctor    [dir]                Prove every guard against samples and bypass regressions; simulate a session.
