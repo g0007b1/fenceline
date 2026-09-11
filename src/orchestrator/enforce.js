@@ -30,9 +30,17 @@ function apply(root, diagnosis, opts) {
 
   // paths: base secrets/tooling patterns + what the diagnosis named
   const denyWrite = preset.denyWrite.map((p) => ({ source: p.re.source, flags: p.re.flags, label: p.label || null }));
+  const MUST_ALLOW = ['.env.example', '.env.sample', 'README.md', 'package.json', 'src/index.ts', 'docs/README.md'];
+  const skipped = [];
   for (const p of diagnosis.protectedPaths || []) {
-    if (!p.glob || /^(\*|\*\*|\.|\/|src\/?|src\/\*\*)$/.test(p.glob.trim())) continue; // never protect the whole tree
-    denyWrite.push({ source: globToRegex(p.glob), flags: '', label: p.label || p.glob, reason: p.reason || null, from: 'diagnosis' });
+    const g = (p.glob || '').trim();
+    if (!g || /^(\*|\*\*|\.|\/|src\/?|src\/\*\*)$/.test(g)) { skipped.push(g + ' (whole tree)'); continue; }
+    // base patterns already cover secrets with the right exceptions; build artefacts are not "protected", just noise
+    if (/^\.?\/?(\.env|\.envrc|node_modules|dist|build|out|\.next|coverage|\.fenceline|\.git|\.cache|target|__pycache__|\.venv|venv)(\/|\*|$)/.test(g)) { skipped.push(g + ' (covered by base / build artefact)'); continue; }
+    const source = globToRegex(g);
+    const re = new RegExp(source);
+    if (MUST_ALLOW.some((f) => re.test(f))) { skipped.push(g + ' (would deny ' + MUST_ALLOW.find((f) => re.test(f)) + ')'); continue; }
+    denyWrite.push({ source, flags: '', label: p.label || g, reason: p.reason || null, from: 'diagnosis' });
   }
   const checks = (diagnosis.checks || []).filter((c) => c.command && c.verified !== false).map((c, i) => ({ id: c.id || `check${i + 1}`, command: c.command }));
   if (!checks.length) { if (profile.stack.checks.lint) checks.push({ id: 'lint', command: profile.stack.checks.lint }); if (profile.stack.checks.typeCheck) checks.push({ id: 'typeCheck', command: profile.stack.checks.typeCheck }); }
@@ -70,7 +78,7 @@ function apply(root, diagnosis, opts) {
   const R = require('../render');
   R.writeIfMissing(path.join(root, 'docs', 'handoffs', '_TEMPLATE.md'), R.loadTemplate(path.join('handoffs', '_TEMPLATE.md')));
   R.writeIfMissing(path.join(root, 'docs', 'adr', '_TEMPLATE.md'), R.loadTemplate(path.join('adr', '_TEMPLATE.md')));
-  return { cfg, summary: { protectedPaths: denyWrite.length, fromDiagnosis: denyWrite.filter((d) => d.from === 'diagnosis').length, checks: checks.length, wired, siblings, protectedBranches } };
+  return { cfg, summary: { protectedPaths: denyWrite.length, fromDiagnosis: denyWrite.filter((d) => d.from === 'diagnosis').length, skippedGlobs: skipped, checks: checks.length, wired, siblings, protectedBranches } };
 }
 
 function detectBaseBranch(root) {
@@ -79,4 +87,24 @@ function detectBaseBranch(root) {
   catch { try { const b = execSync('git branch --list', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' }); return /\bmain\b/.test(b) ? 'main' : /\bmaster\b/.test(b) ? 'master' : 'main'; } catch { return 'main'; } }
 }
 
-module.exports = { apply };
+// Rules written by the compose agent to docs/agent-rules/*.md (mdc-style frontmatter) → each runtime's native format.
+function distributeRules(root, targets) {
+  const src = path.join(root, 'docs', 'agent-rules');
+  if (!fs.existsSync(src)) return [];
+  const out = [];
+  const files = fs.readdirSync(src).filter((f) => f.endsWith('.md'));
+  for (const a of getAdapters(targets)) {
+    if (a.rulesPath === 'docs/agent-rules') continue; // already native
+    for (const f of files) {
+      const raw = fs.readFileSync(path.join(src, f), 'utf8').replace(/\r\n/g, '\n');
+      const body = a.convertRule ? a.convertRule(raw) : raw;
+      const target = path.join(root, a.rulesPath, f.replace(/\.md$/, a.ruleExt));
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, body);
+      out.push(path.relative(root, target));
+    }
+  }
+  return out;
+}
+
+module.exports = { apply, distributeRules };

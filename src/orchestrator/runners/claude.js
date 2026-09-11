@@ -74,14 +74,15 @@ function run(opts) {
       let result = null;
       if (opts.includeHookEvents) result = events.find((e) => e.type === 'result') || null;
       else { try { const parsed = JSON.parse(out); result = Array.isArray(parsed) ? parsed.find((e) => e.type === 'result') || null : parsed; } catch { result = null; } }
-      const isError = !result || result.is_error === true || (code !== 0 && !(result && result.structured_output)) || /^error_/.test((result && result.subtype) || '');
+      const limited = /^error_max_(turns|budget_usd)$/.test((result && result.subtype) || '');
+      const isError = !result || (result.is_error === true && !limited) || (code !== 0 && !(result && result.structured_output) && !limited) || (/^error_/.test((result && result.subtype) || '') && !limited);
       const text = result ? (typeof result.result === 'string' ? result.result : JSON.stringify(result.result)) : (out || err).trim();
       let json = null;
       if (result && result.structured_output !== undefined) json = result.structured_output;
       else if (opts.schema && result && typeof result.result === 'string') { try { json = JSON.parse(result.result); } catch { json = extractJson(result.result); } }
       const authFail = /authenticat|OAuth|login|API key/i.test(text) && isError;
       resolve({
-        ok: !isError, text, json, events,
+        ok: !isError, limited, text, json, events,
         sessionId: result && result.session_id, costUsd: result && result.total_cost_usd, turns: result && result.num_turns,
         durationMs: Date.now() - started, exitCode: code, stderr: err.trim(), authFail, raw: result,
       });

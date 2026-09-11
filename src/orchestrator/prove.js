@@ -30,7 +30,7 @@ async function run(root, runner, opts) {
   });
   const audit = fs.existsSync(auditPath) ? fs.readFileSync(auditPath, 'utf8').slice(auditBefore) : '';
   const envDenied = /"decision":"deny"[^\n]*\.env/.test(audit) || /env-write=denied/.test(r.text || '');
-  const stopFired = r.events.some((e) => /Stop/.test(JSON.stringify(e.hook_event_name || e.hookEventName || e.event || '')) && /block|followup|checks|review/i.test(JSON.stringify(e)));
+  const stopFired = r.events.some((e) => e.type === 'system' && e.subtype === 'hook_response' && /^Stop/.test(e.hook_name || e.hook_event || '') && /"decision":"block"|followup_message/.test(String(e.output || '')));
   const line = (r.text || '').split('\n').find((l) => l.startsWith('CANARY:')) || '';
   summary.canary = { ok: r.ok, envDenied, stopFired, line, costUsd: r.costUsd, turns: r.turns };
   // clean the canary line

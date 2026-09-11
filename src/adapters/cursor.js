@@ -66,4 +66,6 @@ function isWired(root) {
   return fs.existsSync(file) && fs.readFileSync(file, 'utf8').includes(OURS);
 }
 
-module.exports = { id: 'cursor', hooksFile: '.cursor/hooks.json', label: 'Cursor', enforces: true, experimental: false, rulesPath: '.cursor/rules', ruleExt: '.mdc', commandsPath: '.cursor/commands', writeHooksConfig, removeHooksConfig, isWired };
+function convertRule(content) { return content; }
+
+module.exports = { id: 'cursor', hooksFile: '.cursor/hooks.json', convertRule, label: 'Cursor', enforces: true, experimental: false, rulesPath: '.cursor/rules', ruleExt: '.mdc', commandsPath: '.cursor/commands', writeHooksConfig, removeHooksConfig, isWired };
