@@ -21,7 +21,11 @@ function authHint() { return 'Claude Code is not logged in. Run `claude auth log
 //         maxBudgetUsd, model, effort, resume, sessionId, agents{}, settings, includeHookEvents, onEvent(fn), timeoutMs }
 function run(opts) {
   return new Promise((resolve) => {
-    const args = ['-p', '--output-format', opts.includeHookEvents ? 'stream-json' : 'json', '--verbose'];
+    // --verbose turns json output into an array of every message; only stream-json needs it.
+    const args = ['-p', '--output-format', opts.includeHookEvents ? 'stream-json' : 'json'];
+    if (opts.includeHookEvents) args.push('--verbose');
+    // keep the agent's tool surface small: built-in tools only, no MCP servers / plugins from the user's global config
+    args.push('--tools', opts.tools || 'Read,Glob,Grep,Bash,Edit,Write', '--strict-mcp-config', '--setting-sources', opts.settingSources || 'project');
     if (opts.schema) args.push('--json-schema', JSON.stringify(opts.schema));
     if (opts.system) args.push('--system-prompt', opts.system);
     if (opts.appendSystem) args.push('--append-system-prompt', opts.appendSystem);
@@ -36,7 +40,6 @@ function run(opts) {
     if (opts.sessionId) args.push('--session-id', opts.sessionId);
     if (opts.agents) args.push('--agents', JSON.stringify(opts.agents));
     if (opts.settings) args.push('--settings', typeof opts.settings === 'string' ? opts.settings : JSON.stringify(opts.settings));
-    if (opts.settingSources) args.push('--setting-sources', opts.settingSources);
     if (opts.includeHookEvents) args.push('--include-hook-events');
     if (opts.noPersist) args.push('--no-session-persistence');
     args.push(opts.prompt);
@@ -62,9 +65,15 @@ function run(opts) {
     const timer = setTimeout(() => { child.kill('SIGTERM'); }, opts.timeoutMs || 30 * 60 * 1000);
     child.on('close', (code) => {
       clearTimeout(timer);
+      // keep the raw transcript of every phase for debugging (.fenceline/logs/<phase>.log)
+      try {
+        const fs = require('fs'); const path = require('path');
+        const dir = path.join(opts.cwd, '.fenceline', 'logs'); fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, `${opts.phase || 'run'}.log`), `# args\n${JSON.stringify(args.slice(0, -1))}\n# exit ${code}\n# stderr\n${err}\n# stdout\n${out}`);
+      } catch { /* best effort */ }
       let result = null;
       if (opts.includeHookEvents) result = events.find((e) => e.type === 'result') || null;
-      else { try { result = JSON.parse(out); } catch { result = null; } }
+      else { try { const parsed = JSON.parse(out); result = Array.isArray(parsed) ? parsed.find((e) => e.type === 'result') || null : parsed; } catch { result = null; } }
       const isError = !result || result.is_error === true || (code !== 0 && !(result && result.structured_output)) || /^error_/.test((result && result.subtype) || '');
       const text = result ? (typeof result.result === 'string' ? result.result : JSON.stringify(result.result)) : (out || err).trim();
       let json = null;
