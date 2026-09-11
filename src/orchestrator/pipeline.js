@@ -132,7 +132,7 @@ async function run(root, opts) {
   const hasHooks = !opts.components || opts.components.includes('hooks');
   const enforced = enforce.apply(root, diagnosis, { targets, hasHooks, siblings: opts.siblings, protectedBranches: opts.protectedBranches, profile: opts.profile });
   report.phases.enforce = enforced.summary;
-  log(`  ✓ enforce: ${enforced.summary.protectedPaths} protected path patterns, ${enforced.summary.checks} checks, hooks ${hasHooks ? 'wired for ' + targets.join(', ') : 'not installed'}`);
+  log(`  ✓ enforce: ${enforced.summary.protectedPaths} protected path patterns, ${enforced.summary.checks} checks, hooks ${hasHooks ? 'wired for ' + targets.join(', ') : 'not installed'}${enforced.summary.commands ? `, ${enforced.summary.commands} slash commands` : ''}${enforced.summary.skippedGlobs.length ? ` (skipped globs: ${enforced.summary.skippedGlobs.join('; ')})` : ''}`);
 
   // 3. compose — the agent writes the environment
   const writable = ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'docs/**'];

@@ -380,7 +380,7 @@ it('init --agent fake runs evidence → diagnose → enforce → compose → rev
   assert.strictEqual(r.status, 0, r.stderr + r.stdout);
   assert(r.stdout.includes('diagnosis: 1 entities') && r.stdout.includes('compose:') && r.stdout.includes('rules:') && r.stdout.includes('Review: fixed'), r.stdout);
   assert(fs.readFileSync(path.join(orc, '.claude/rules/fenceline-conventions.md'), 'utf8').includes('paths:'), 'rules distributed in claude format');
-  for (const f of ['.fenceline/evidence.json', '.fenceline/evidence.md', '.fenceline/diagnosis.json', '.fenceline/config.json', '.fenceline/hooks/guard-shell.js', '.cursor/hooks.json', 'AGENTS.md', 'CLAUDE.md', 'docs/features-bookings.md', '.cursor/rules/fenceline-conventions.mdc', 'docs/agent-rules/fenceline-conventions.md', 'docs/adr/_TEMPLATE.md']) assert(fs.existsSync(path.join(orc, f)), f);
+  for (const f of ['.fenceline/evidence.json', '.fenceline/evidence.md', '.fenceline/diagnosis.json', '.fenceline/config.json', '.fenceline/hooks/guard-shell.js', '.cursor/hooks.json', 'AGENTS.md', 'CLAUDE.md', 'docs/features-bookings.md', '.cursor/rules/fenceline-conventions.mdc', 'docs/agent-rules/fenceline-conventions.md', 'docs/adr/_TEMPLATE.md', '.cursor/commands/fenceline-review.md', '.claude/commands/fenceline-pr.md']) assert(fs.existsSync(path.join(orc, f)), f);
   assert(fs.readFileSync(path.join(orc, '.cursor/rules/fenceline-conventions.mdc'), 'utf8').startsWith('---\ndescription: conventions\nglobs:'), 'rules distributed in cursor format');
   assert(fs.readFileSync(path.join(orc, 'AGENTS.md'), 'utf8').includes('bookings-web'), 'agent-authored content');
   const cfg = JSON.parse(fs.readFileSync(path.join(orc, '.fenceline/config.json'), 'utf8'));

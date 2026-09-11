@@ -7,7 +7,7 @@ const { getPreset, chooseLayers } = require('../presets');
 const { scan } = require('../scan');
 const { getAdapters } = require('../adapters');
 const { getProfile } = require('../profiles');
-const { HOOK_SCRIPTS, GITIGNORE, GI_BEGIN, GI_END } = require('../init');
+const { HOOK_SCRIPTS, COMMANDS, GITIGNORE, GI_BEGIN, GI_END } = require('../init');
 const { globToRegex } = require('./pipeline-utils');
 
 function ensureGitignore(root, entries) {
@@ -74,11 +74,23 @@ function apply(root, diagnosis, opts) {
     for (const f of fs.readdirSync(path.join(__dirname, '..', '..', 'hooks', 'lib'))) fs.copyFileSync(path.join(__dirname, '..', '..', 'hooks', 'lib', f), path.join(hooksDir, 'lib', f));
     for (const a of adapters) { const r = a.writeHooksConfig(root, cfg); if (r) wired.push(r.file); }
   }
-  // templates the agent does not write
+  // slash commands (review / pr / handoff / domain-doc / triage) for runtimes that have them
   const R = require('../render');
+  const cmdVars = { baseBranch, branchPrefix: 'agent/', rulesPath, checkCommands: checks.map((c) => c.command).join('\n') || '# no checks configured' };
+  const commands = [];
+  for (const a of adapters) {
+    if (!a.commandsPath) continue;
+    for (const c of COMMANDS) {
+      const target = path.join(root, a.commandsPath, c + '.md');
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, R.render(R.loadTemplate(path.join('commands', c + '.md')), cmdVars));
+      commands.push(path.relative(root, target));
+    }
+  }
+  // templates the agent does not write
   R.writeIfMissing(path.join(root, 'docs', 'handoffs', '_TEMPLATE.md'), R.loadTemplate(path.join('handoffs', '_TEMPLATE.md')));
   R.writeIfMissing(path.join(root, 'docs', 'adr', '_TEMPLATE.md'), R.loadTemplate(path.join('adr', '_TEMPLATE.md')));
-  return { cfg, summary: { protectedPaths: denyWrite.length, fromDiagnosis: denyWrite.filter((d) => d.from === 'diagnosis').length, skippedGlobs: skipped, checks: checks.length, wired, siblings, protectedBranches } };
+  return { cfg, summary: { protectedPaths: denyWrite.length, fromDiagnosis: denyWrite.filter((d) => d.from === 'diagnosis').length, skippedGlobs: skipped, checks: checks.length, wired, commands: commands.length, siblings, protectedBranches } };
 }
 
 function detectBaseBranch(root) {
